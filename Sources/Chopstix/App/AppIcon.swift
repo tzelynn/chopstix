@@ -15,7 +15,7 @@ struct AppIconView: View {
                 ZStack(alignment: .top) {
                     ChopsticksView(layer: .back, lacquer: Flavor.prawnMee.accent)
                     NotePaper(flavor: .prawnMee)
-                        .overlay { FlavorDecoration(flavor: .prawnMee, topInset: 40, scale: 1.25) }
+                        .overlay { FlavorDecoration(flavor: .prawnMee, topInset: 40, scale: 1.25, scalesWithSize: false) }
                         .overlay(alignment: .topLeading) {
                             VStack(alignment: .leading, spacing: 9) {
                                 Capsule().fill(Theme.ink.opacity(0.35)).frame(width: 140, height: 9)

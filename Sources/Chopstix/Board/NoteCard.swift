@@ -46,7 +46,7 @@ struct NoteCard: View {
         .background {
             ZStack {
                 NotePaper(flavor: note.flavor, fold: 14)
-                FlavorDecoration(flavor: note.flavor, scale: 0.75, showsTopGarnish: false)
+                FlavorDecoration(flavor: note.flavor, scale: 0.8, showsTopGarnish: false)
                     .mask(NoteShape(fold: 14))
                     .opacity(0.9)
                     .padding(.bottom, -4)

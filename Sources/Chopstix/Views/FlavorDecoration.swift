@@ -7,11 +7,32 @@ struct FlavorDecoration: View {
     var topInset: CGFloat = 40
     /// Distance of the bottom-left garnishes from the bottom edge (clears the toolbar).
     var bottomInset: CGFloat = 0
+    /// Multiplier on top of the size-derived scale (or the whole scale when `scalesWithSize` is off).
     var scale: CGFloat = 1
+    /// Grow the garnishes with the note, up to `Sizing.maxScale`.
+    var scalesWithSize = true
     var showsTopGarnish = true
+
+    /// Garnishes track the note's shorter side, since that's what bounds the corners they sit in.
+    /// Growth is sub-linear (square root) so they stay accents rather than ballooning with the note,
+    /// and clamped so tiny notes keep them legible and huge notes don't get oversized doodles.
+    enum Sizing {
+        /// Shorter side of a default-sized sticky note's paper.
+        static let referenceSide: CGFloat = 230
+        static let baseScale: CGFloat = 1.25
+        static let minScale: CGFloat = 1.0
+        static let maxScale: CGFloat = 1.6
+
+        static func scale(for size: CGSize) -> CGFloat {
+            let side = min(size.width, size.height)
+            guard side > 0 else { return baseScale }
+            return min(maxScale, max(minScale, baseScale * (side / referenceSide).squareRoot()))
+        }
+    }
 
     var body: some View {
         Canvas { ctx, size in
+            let scale = (scalesWithSize ? Sizing.scale(for: size) : 1) * self.scale
             for placement in Garnish.placements(for: flavor) where showsTopGarnish || placement.corner == .bottomLeading {
                 var c = ctx
                 let origin: CGPoint = switch placement.corner {
