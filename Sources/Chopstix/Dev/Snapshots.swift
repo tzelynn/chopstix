@@ -85,6 +85,7 @@ enum Snapshots {
                              content: [TextRun(text: "someday", style: bold), TextRun(text: "\n☐ learn to hand-pull noodles\n☐ visit sapporo")],
                              isOnScreen: false))
         model.store.add(Note(number: model.store.nextNumber, flavor: .prawnMee, content: [], isOnScreen: false))
+        model.setSectionDescription(.ramen, "the week ahead — meetings, errands, and the odd someday")
         return model
     }
 }

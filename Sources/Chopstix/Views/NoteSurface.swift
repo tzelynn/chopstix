@@ -54,6 +54,7 @@ struct NoteSurface: View {
 
 /// Formatting buttons plus the note's menu. Fades in when hovering a sticky note.
 struct NoteToolbar: View {
+    @Environment(AppModel.self) private var model
     let note: Note
     let context: NoteSurface.Context
     let editor: EditorController
@@ -67,6 +68,9 @@ struct NoteToolbar: View {
                 }
             }
             Spacer(minLength: 2)
+            if context == .sticky {
+                ToolbarIcon(symbol: "tray.and.arrow.down", help: "Return to Menu Board") { model.returnToBoard(note.id) }
+            }
             Menu {
                 NoteMenuItems(note: note, context: context)
             } label: {
@@ -124,7 +128,10 @@ struct NoteMenuItems: View {
 
         if note.isOnScreen {
             Toggle("Always on Top", isOn: Binding(get: { note.alwaysOnTop }, set: { _ in model.toggleAlwaysOnTop(note.id) }))
-            Button("Return to Menu Board") { model.returnToBoard(note.id) }
+            // Sticky notes have a dedicated toolbar button for this.
+            if context == .board {
+                Button("Return to Menu Board") { model.returnToBoard(note.id) }
+            }
         } else {
             Button("Stick on Screen") { model.stickOnScreen(note.id) }
         }

@@ -48,6 +48,24 @@ final class AppModel {
         store.update(id) { $0.flavor = flavor }
     }
 
+    /// A flavour's menu description: the user's own if they've written one.
+    func blurb(for flavor: Flavor) -> String {
+        store.blurbs[flavor] ?? flavor.blurb
+    }
+
+    func setBlurb(_ flavor: Flavor, _ text: String?) {
+        store.setBlurb(flavor, text)
+    }
+
+    /// The user's description of a flavour's section, if they've written one.
+    func sectionDescription(for flavor: Flavor) -> String? {
+        store.descriptions[flavor]
+    }
+
+    func setSectionDescription(_ flavor: Flavor, _ text: String?) {
+        store.setDescription(flavor, text)
+    }
+
     func setFrame(_ id: UUID, _ frame: CGRect) {
         store.update(id, touch: false) { $0.frame = frame }
     }

@@ -30,7 +30,7 @@ enum Flavor: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// One-line menu description shown on the board.
+    /// Default one-line menu description shown on the board (users can rewrite it).
     var blurb: String {
         switch self {
         case .prawnMee: "rich prawn broth, a few curly friends"

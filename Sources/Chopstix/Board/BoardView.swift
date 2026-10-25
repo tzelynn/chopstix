@@ -46,7 +46,10 @@ struct BoardView: View {
                         ForEach(Flavor.allCases) { flavor in
                             let notes = visibleNotes.filter { $0.flavor == flavor }
                             if !notes.isEmpty {
-                                MenuSection(flavor: flavor, notes: notes, open: open)
+                                MenuSection(flavor: flavor, notes: notes, open: open) {
+                                    // Keep the new note visible under the current filter.
+                                    orderNote(onScreen: filter == .onScreen, flavor: flavor)
+                                }
                             }
                         }
                     }
@@ -242,6 +245,9 @@ struct MenuSection: View {
     let flavor: Flavor
     let notes: [Note]
     let open: (Note) -> Void
+    let add: () -> Void
+    @Environment(AppModel.self) private var model
+    @State private var hovering = false
 
     private let columns = [GridItem(.adaptive(minimum: 190, maximum: 260), spacing: 20, alignment: .top)]
 
@@ -262,11 +268,20 @@ struct MenuSection: View {
                     Text(notes.count == 1 ? "1 note" : "\(notes.count) notes")
                         .font(Theme.serif(13).italic())
                         .foregroundStyle(Theme.inkSoft)
+                    AddToSectionButton(flavor: flavor, action: add)
                 }
-                Text(flavor.blurb)
-                    .font(Theme.serif(12.5).italic())
-                    .foregroundStyle(Theme.inkFaint)
+                if model.sectionDescription(for: flavor) == nil {
+                    // No description yet: its hover hint shares the blurb's line rather than adding one.
+                    HStack(alignment: .firstTextBaseline, spacing: 16) {
+                        SectionDescription(flavor: flavor, sectionHovered: hovering)
+                        SectionBlurb(flavor: flavor).fixedSize()
+                    }
                     .padding(.leading, 18)
+                } else {
+                    SectionBlurb(flavor: flavor)
+                    SectionDescription(flavor: flavor, sectionHovered: hovering)
+                        .padding(.leading, 18)
+                }
             }
 
             LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
@@ -275,6 +290,164 @@ struct MenuSection: View {
                 }
             }
         }
+        .onHover { hovering = $0 }
+    }
+}
+
+/// A small stamp beside a section's note count that orders a note of that flavour.
+struct AddToSectionButton: View {
+    let flavor: Flavor
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "plus")
+                    .font(.system(size: 9, weight: .bold))
+                Text("add")
+                    .font(Theme.serif(12, .semibold))
+            }
+            .foregroundStyle(Theme.menuStamp)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Theme.menuStamp.opacity(hovering ? 0.08 : 0.03)))
+            .overlay(Capsule().strokeBorder(Theme.menuStamp.opacity(0.7), style: StrokeStyle(lineWidth: 1.1, dash: [3, 2])))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Add a \(flavor.name) note")
+    }
+}
+
+/// A section's menu description, right-aligned under the header. Click to rewrite it.
+struct SectionBlurb: View {
+    let flavor: Flavor
+    @Environment(AppModel.self) private var model
+    @State private var editing = false
+    @State private var draft = ""
+    @State private var hovering = false
+    @FocusState private var focused: Bool
+
+    private var isCustom: Bool { model.blurb(for: flavor) != flavor.blurb }
+
+    var body: some View {
+        Group {
+            if editing {
+                TextField("", text: $draft, prompt: Text(flavor.blurb))
+                    .textFieldStyle(.plain)
+                    .multilineTextAlignment(.trailing)
+                    .focused($focused)
+                    .onSubmit(commit)
+                    .onExitCommand { editing = false }
+                    .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
+                    .onAppear { DispatchQueue.main.async { focused = true } }
+            } else {
+                HStack(spacing: 5) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 10))
+                        .opacity(hovering ? 1 : 0)
+                    Text(model.blurb(for: flavor))
+                }
+                .contentShape(Rectangle())
+                .onTapGesture(perform: beginEditing)
+                .onHover { hovering = $0 }
+                .help("Click to rewrite this description")
+                .contextMenu {
+                    Button("Edit Description", action: beginEditing)
+                    Button("Restore Original Description") { model.setBlurb(flavor, nil) }
+                        .disabled(!isCustom)
+                }
+            }
+        }
+        .font(Theme.serif(12.5).italic())
+        .foregroundStyle(Theme.inkFaint)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    private func beginEditing() {
+        draft = model.blurb(for: flavor)
+        editing = true
+    }
+
+    private func commit() {
+        guard editing else { return }
+        model.setBlurb(flavor, draft)
+        editing = false
+    }
+}
+
+/// The user's own note about what a section is for, under its header. Click to write or edit it;
+/// while empty, an "add a description" hint appears only when the section is hovered.
+struct SectionDescription: View {
+    let flavor: Flavor
+    let sectionHovered: Bool
+    @Environment(AppModel.self) private var model
+    @State private var editing = false
+    @State private var draft = ""
+    @State private var hovering = false
+    @FocusState private var focused: Bool
+
+    private var text: String? { model.sectionDescription(for: flavor) }
+
+    var body: some View {
+        Group {
+            if editing {
+                TextField("", text: $draft, prompt: Text("what's this section for?"), axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1...6)
+                    .foregroundStyle(Theme.inkSoft)
+                    .focused($focused)
+                    .onSubmit(commit)
+                    .onExitCommand { editing = false }
+                    .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
+                    .onAppear { DispatchQueue.main.async { focused = true } }
+            } else if let text {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(text)
+                        .foregroundStyle(Theme.inkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Image(systemName: "pencil")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.inkFaint)
+                        .opacity(hovering ? 1 : 0)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture(perform: beginEditing)
+                .onHover { hovering = $0 }
+                .help("Click to edit this description")
+                .contextMenu {
+                    Button("Edit Section Description", action: beginEditing)
+                    Button("Remove Section Description") { model.setSectionDescription(flavor, nil) }
+                }
+            } else {
+                Button(action: beginEditing) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus").font(.system(size: 9, weight: .semibold))
+                        Text("add a description")
+                    }
+                    .foregroundStyle(Theme.inkFaint)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .opacity(sectionHovered ? 1 : 0)
+                .help("Describe what this section is for")
+            }
+        }
+        .font(Theme.serif(13.5))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func beginEditing() {
+        draft = text ?? ""
+        editing = true
+    }
+
+    private func commit() {
+        guard editing else { return }
+        model.setSectionDescription(flavor, draft)
+        editing = false
     }
 }
 

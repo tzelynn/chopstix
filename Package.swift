@@ -5,7 +5,7 @@ let package = Package(
     name: "Chopstix",
     platforms: [.macOS(.v14)],
     targets: [
-        .executableTarget(name: "Chopstix"),
+        .executableTarget(name: "Chopstix", resources: [.copy("Resources/AppIcon.svg")]),
         .testTarget(name: "ChopstixTests", dependencies: ["Chopstix"]),
     ],
     swiftLanguageModes: [.v5]

@@ -12,6 +12,7 @@ APP=build/Chopstix.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Chopstix"
+cp Sources/Chopstix/Resources/AppIcon.svg "$APP/Contents/Resources/"
 
 ICONSET=build/Chopstix.iconset
 rm -rf "$ICONSET"

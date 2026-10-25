@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The app icon, drawn in code so it can be rendered at any size (and exported for the bundle).
+/// The app icon: the vector artwork in Resources/AppIcon.svg on a macOS-style squircle, so it can be
+/// rendered at any size (and exported for the bundle).
 struct AppIconView: View {
     var body: some View {
         GeometryReader { geo in
@@ -12,26 +13,12 @@ struct AppIconView: View {
                     .frame(width: 824 * s, height: 824 * s)
                     .shadow(color: .black.opacity(0.22), radius: 18 * s, y: 10 * s)
 
-                ZStack(alignment: .top) {
-                    ChopsticksView(layer: .back, lacquer: Flavor.prawnMee.accent)
-                    NotePaper(flavor: .prawnMee)
-                        .overlay { FlavorDecoration(flavor: .prawnMee, topInset: 40, scale: 1.25, scalesWithSize: false) }
-                        .overlay(alignment: .topLeading) {
-                            VStack(alignment: .leading, spacing: 9) {
-                                Capsule().fill(Theme.ink.opacity(0.35)).frame(width: 140, height: 9)
-                                Capsule().fill(Theme.ink.opacity(0.2)).frame(width: 110, height: 8)
-                                Capsule().fill(Theme.ink.opacity(0.2)).frame(width: 125, height: 8)
-                            }
-                            .padding(.top, 40)
-                            .padding(.leading, 24)
-                        }
-                        .shadow(color: .black.opacity(0.12), radius: 6, y: 4)
-                        .padding(StickyLayout.insets)
-                    ChopsticksView(layer: .front, lacquer: Flavor.prawnMee.accent)
+                if let artwork = AppIcon.artwork {
+                    Image(nsImage: artwork)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 680 * s, height: 680 * s)
                 }
-                .frame(width: 230, height: 230)
-                .scaleEffect(2.55 * s)
-                .rotationEffect(.degrees(-4))
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
@@ -39,6 +26,17 @@ struct AppIconView: View {
 }
 
 enum AppIcon {
+    /// Inside the .app, build_app.sh copies the SVG into Contents/Resources; under `swift run` it lives in
+    /// SwiftPM's resource bundle. (Bundle.module is only touched in the latter case — it traps if missing.)
+    static let artwork: NSImage? = {
+        let url = Bundle.main.url(forResource: "AppIcon", withExtension: "svg")
+            ?? Bundle.module.url(forResource: "AppIcon", withExtension: "svg")
+        guard let image = url.flatMap(NSImage.init(contentsOf:)) else { return nil }
+        // The SVG's intrinsic size is 48pt; SwiftUI rasterises at that size, so enlarge it to stay crisp.
+        image.size = NSSize(width: 1024, height: 1024)
+        return image
+    }()
+
     @MainActor
     static func image(size: CGFloat) -> NSImage {
         let renderer = ImageRenderer(content: AppIconView().frame(width: size, height: size))

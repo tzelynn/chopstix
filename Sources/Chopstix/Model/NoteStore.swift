@@ -5,6 +5,10 @@ import Observation
 @Observable
 final class NoteStore {
     private(set) var notes: [Note] = []
+    /// Menu descriptions the user has rewritten, keyed by flavour.
+    private(set) var blurbs: [Flavor: String] = [:]
+    /// The user's own notes about what each flavour's section is for, keyed by flavour.
+    private(set) var descriptions: [Flavor: String] = [:]
 
     @ObservationIgnored let fileURL: URL
     @ObservationIgnored private var pendingSave: DispatchWorkItem?
@@ -12,6 +16,10 @@ final class NoteStore {
     private struct Archive: Codable {
         var version = 1
         var notes: [Note]
+        /// Custom flavour descriptions, keyed by `Flavor.rawValue`. Absent in older files.
+        var blurbs: [String: String]?
+        /// Section descriptions, keyed by `Flavor.rawValue`. Absent in older files.
+        var descriptions: [String: String]?
     }
 
     static var defaultDirectory: URL {
@@ -31,7 +39,10 @@ final class NoteStore {
     func load() -> Bool {
         guard let data = try? Data(contentsOf: fileURL) else { return false }
         do {
-            notes = try JSONDecoder.chopstix.decode(Archive.self, from: data).notes
+            let archive = try JSONDecoder.chopstix.decode(Archive.self, from: data)
+            notes = archive.notes
+            blurbs = Self.byFlavor(archive.blurbs)
+            descriptions = Self.byFlavor(archive.descriptions)
         } catch {
             // Never silently overwrite notes we couldn't read: set the file aside first.
             let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
@@ -68,6 +79,34 @@ final class NoteStore {
         scheduleSave()
     }
 
+    /// Sets a flavour's menu description; `nil` or blank restores the default.
+    func setBlurb(_ flavor: Flavor, _ text: String?) {
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let value = trimmed.isEmpty || trimmed == flavor.blurb ? nil : trimmed
+        guard blurbs[flavor] != value else { return }
+        blurbs[flavor] = value
+        scheduleSave()
+    }
+
+    /// Sets a flavour's section description; `nil` or blank removes it.
+    func setDescription(_ flavor: Flavor, _ text: String?) {
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let value = trimmed.isEmpty ? nil : trimmed
+        guard descriptions[flavor] != value else { return }
+        descriptions[flavor] = value
+        scheduleSave()
+    }
+
+    private static func byFlavor(_ raw: [String: String]?) -> [Flavor: String] {
+        Dictionary(uniqueKeysWithValues: (raw ?? [:]).compactMap { key, text in
+            Flavor(rawValue: key).map { ($0, text) }
+        })
+    }
+
+    private static func byRawValue(_ map: [Flavor: String]) -> [String: String]? {
+        map.isEmpty ? nil : Dictionary(uniqueKeysWithValues: map.map { ($0.rawValue, $1) })
+    }
+
     func scheduleSave() {
         pendingSave?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.saveNow() }
@@ -80,7 +119,7 @@ final class NoteStore {
         pendingSave = nil
         do {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            let data = try JSONEncoder.chopstix.encode(Archive(notes: notes))
+            let data = try JSONEncoder.chopstix.encode(Archive(notes: notes, blurbs: Self.byRawValue(blurbs), descriptions: Self.byRawValue(descriptions)))
             try data.write(to: fileURL, options: .atomic)
         } catch {
             NSLog("chopstix: failed to save notes: \(error)")
