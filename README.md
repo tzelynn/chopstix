@@ -6,6 +6,24 @@ screen by a pair of chopsticks; all of them live on a menu-style board.
 See [specs/chopstix_mvp.md](specs/chopstix_mvp.md) for the brief and
 [specs/chopstix_design.md](specs/chopstix_design.md) for the plan and design.
 
+<p align="center">
+  <img src="docs/screenshots/note-prawnMee.png" width="200" alt="Prawn Mee note">
+  <img src="docs/screenshots/note-ramen.png" width="200" alt="Ramen note">
+  <img src="docs/screenshots/note-matchaSoba.png" width="200" alt="Matcha Soba note">
+  <img src="docs/screenshots/note-laksa.png" width="200" alt="Laksa note">
+  <br>
+  <img src="docs/screenshots/note-pho.png" width="200" alt="Pho note">
+  <img src="docs/screenshots/note-japchae.png" width="200" alt="Japchae note">
+  <img src="docs/screenshots/note-udon.png" width="200" alt="Udon note">
+</p>
+
+| The menu board | Editing a note in the board |
+| :---: | :---: |
+| <img src="docs/screenshots/board.png" width="420" alt="Menu board"> | <img src="docs/screenshots/editor-sheet.png" width="360" alt="Note editor sheet"> |
+
+Screenshots are rendered straight from the SwiftUI views with
+`swift run Chopstix --snapshot <dir>` (sample notes, your real notes are untouched).
+
 ## Build & run
 
 Requires macOS 14+ and the Swift 6 toolchain (Xcode or just the Command Line Tools).
