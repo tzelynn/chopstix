@@ -3,9 +3,6 @@
 A cute, simple sticky-note app for macOS. Each note is a bowl of noodles held up on your
 screen by a pair of chopsticks; all of them live on a menu-style board.
 
-See [specs/chopstix_mvp.md](specs/chopstix_mvp.md) for the brief and
-[specs/chopstix_design.md](specs/chopstix_design.md) for the plan and design.
-
 <p align="center">
   <img src="docs/screenshots/note-prawnMee.png" width="200" alt="Prawn Mee note">
   <img src="docs/screenshots/note-ramen.png" width="200" alt="Ramen note">
