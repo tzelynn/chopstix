@@ -1,0 +1,41 @@
+# chopstix 🥢
+
+A cute, simple sticky-note app for macOS. Each note is a bowl of noodles held up on your
+screen by a pair of chopsticks; all of them live on a menu-style board.
+
+See [specs/chopstix_mvp.md](specs/chopstix_mvp.md) for the brief and
+[specs/chopstix_design.md](specs/chopstix_design.md) for the plan and design.
+
+## Build & run
+
+Requires macOS 14+ and the Swift 6 toolchain (Xcode or just the Command Line Tools).
+
+```sh
+scripts/build_app.sh            # → build/Chopstix.app
+open build/Chopstix.app
+scripts/build_app.sh --install  # copy to /Applications
+
+swift run Chopstix              # quick dev run, no bundle
+scripts/test.sh                 # unit tests
+swift run Chopstix --snapshot /tmp/chopstix-snaps   # render the design to PNGs
+```
+
+Notes are stored in `~/Library/Application Support/Chopstix/notes.json`
+(override with `CHOPSTIX_DATA_DIR=/some/dir`).
+
+## Using it
+
+| | |
+| --- | --- |
+| New sticky note | ⌘N, the menu-bar chopsticks, or **order a note** on the board |
+| New note that stays in the board | ⇧⌘N |
+| Show the board | ⌘0, or click the Dock icon |
+| Move a note | drag the chopsticks / top edge |
+| Resize a note | drag the folded bottom-right corner |
+| Put a note back in the board | ⌘W, or ⋯ → Return to Menu Board |
+| Bold / italic / underline / strikethrough | ⌘B / ⌘I / ⌘U / ⇧⌘X |
+| Bulleted list / checklist | ⇧⌘7 / ⇧⌘L — Return continues the list, Return on an empty item ends it |
+| Tick a box | click it |
+| Flavour, always on top, delete | hover a note → ⋯ |
+
+Flavours: Prawn Mee, Ramen, Matcha Soba, Laksa, Pho, Japchae, Udon.
