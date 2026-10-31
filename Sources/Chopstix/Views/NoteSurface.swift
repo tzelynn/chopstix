@@ -20,15 +20,10 @@ struct NoteSurface: View {
             FlavorDecoration(flavor: note.flavor, topInset: context == .sticky ? 40 : 26, bottomInset: 24)
 
             VStack(spacing: 0) {
-                RichTextEditor(
-                    initialContent: note.content,
-                    flavor: note.flavor,
-                    controller: editor,
-                    autofocus: autofocus
-                ) { model.setContent(note.id, $0) }
+                textEditor
                 .overlay(alignment: .topLeading) {
-                    if note.plainText.isEmpty {
-                        Text("jot something down…")
+                    if isBlank {
+                        Text(note.kind == .markdown ? "jot something down… (/ for blocks)" : "jot something down…")
                             .font(Theme.rounded(NoteTextStyle.fontSize))
                             .foregroundStyle(Theme.ink.opacity(0.35))
                             .padding(.leading, 6)
@@ -50,6 +45,27 @@ struct NoteSurface: View {
             withAnimation(.easeOut(duration: 0.15)) { hovering = inside }
         }
     }
+
+    /// Sticky notes edit rich text; markdown notes edit markdown. Keyed by kind so converting a
+    /// note swaps in the right editor.
+    @ViewBuilder private var textEditor: some View {
+        switch note.kind {
+        case .sticky:
+            RichTextEditor(initialContent: note.content, flavor: note.flavor, controller: editor, autofocus: autofocus) {
+                model.setContent(note.id, $0)
+            }
+            .id(NoteKind.sticky)
+        case .markdown:
+            MarkdownEditor(initialText: note.markdown, theme: .sticky(note.flavor), controller: editor, autofocus: autofocus) {
+                model.setMarkdown(note.id, $0)
+            }
+            .id(NoteKind.markdown)
+        }
+    }
+
+    private var isBlank: Bool {
+        note.kind == .markdown ? note.markdown.isEmpty : note.plainText.isEmpty
+    }
 }
 
 /// Formatting buttons plus the note's menu. Fades in when hovering a sticky note.
@@ -61,13 +77,24 @@ struct NoteToolbar: View {
 
     var body: some View {
         HStack(spacing: 1) {
-            ForEach(FormatAction.allCases) { action in
-                ToolbarIcon(symbol: action.symbol, help: action.shortcutHint) { editor.perform(action) }
-                if action == .strikethrough {
-                    Rectangle().fill(Theme.ink.opacity(0.15)).frame(width: 1, height: 12).padding(.horizontal, 3)
+            switch note.kind {
+            case .sticky:
+                ForEach(FormatAction.allCases) { action in
+                    ToolbarIcon(symbol: action.symbol, help: action.shortcutHint) { editor.perform(action) }
+                    if action == .strikethrough { ToolbarDivider() }
                 }
+            case .markdown:
+                // Kept short to fit the narrowest note; the rest are in the Format menu and `/` menu.
+                ToolbarIcon(symbol: "textformat.size", help: "Heading  ⌥⌘1–3") { editor.perform(MarkdownAction.cycleHeading.selector) }
+                ToolbarIcon(symbol: "bold", help: FormatAction.bold.shortcutHint) { editor.perform(.bold) }
+                ToolbarDivider()
+                ToolbarIcon(symbol: "list.bullet", help: FormatAction.bulletList.shortcutHint) { editor.perform(.bulletList) }
+                ToolbarIcon(symbol: "checklist", help: "To-do  ⇧⌘L") { editor.perform(.checklist) }
             }
             Spacer(minLength: 2)
+            if note.kind == .markdown {
+                ToolbarIcon(symbol: "arrow.up.left.and.arrow.down.right", help: "Open as Page  ⌥⌘↩") { model.openPage(note.id) }
+            }
             if context == .sticky {
                 ToolbarIcon(symbol: "tray.and.arrow.down", help: "Return to Menu Board") { model.returnToBoard(note.id) }
             }
@@ -86,6 +113,12 @@ struct NoteToolbar: View {
         .padding(.leading, 8)
         .padding(.trailing, StickyLayout.foldSize + 4)
         .frame(height: 30)
+    }
+}
+
+struct ToolbarDivider: View {
+    var body: some View {
+        Rectangle().fill(Theme.ink.opacity(0.15)).frame(width: 1, height: 12).padding(.horizontal, 3)
     }
 }
 
@@ -118,10 +151,17 @@ struct NoteMenuItems: View {
     var onDelete: () -> Void = {}
 
     var body: some View {
-        Picker("Flavour", selection: Binding(get: { note.flavor }, set: { model.setFlavor(note.id, $0) })) {
-            ForEach(Flavor.allCases) { flavor in
-                Text("\(flavor.name)  \(flavor.nativeName)").tag(flavor)
-            }
+        FlavorPicker(note: note)
+
+        Divider()
+
+        switch note.kind {
+        case .markdown:
+            Button("Open as Page") { model.openPage(note.id) }
+            Button("Save as Markdown…") { model.saveMarkdown(note.id) }
+            Button("Export as PDF…") { model.exportPDF(note.id) }
+        case .sticky:
+            Button("Convert to Markdown Note…") { model.convertToMarkdown(note.id) }
         }
 
         Divider()
@@ -143,6 +183,19 @@ struct NoteMenuItems: View {
 
         Button("Delete Note…", role: .destructive) {
             if model.delete(note.id) { onDelete() }
+        }
+    }
+}
+
+struct FlavorPicker: View {
+    @Environment(AppModel.self) private var model
+    let note: Note
+
+    var body: some View {
+        Picker("Flavour", selection: Binding(get: { note.flavor }, set: { model.setFlavor(note.id, $0) })) {
+            ForEach(Flavor.allCases) { flavor in
+                Text("\(flavor.name)  \(flavor.nativeName)").tag(flavor)
+            }
         }
     }
 }

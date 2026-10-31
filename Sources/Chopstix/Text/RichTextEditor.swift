@@ -1,13 +1,16 @@
 import SwiftUI
 
-/// Lets SwiftUI controls (the note toolbar) drive a specific note's text view.
+/// Lets SwiftUI controls (the note toolbar) drive a specific note's text view — a sticky
+/// note's `NoteTextView` or a markdown note's `MarkdownTextView`.
 final class EditorController {
-    fileprivate(set) weak var textView: NoteTextView?
+    weak var textView: NSTextView?
 
-    func perform(_ action: FormatAction) {
+    func perform(_ action: FormatAction) { perform(action.selector) }
+
+    func perform(_ selector: Selector) {
         guard let textView else { return }
         textView.window?.makeFirstResponder(textView)
-        textView.perform(action)
+        NSApp.sendAction(selector, to: textView, from: nil)
     }
 
     func focus(selectingEnd: Bool = true) {

@@ -10,7 +10,14 @@ enum Snapshots {
 
         for note in model.notes where note.isOnScreen {
             let view = StickyNoteView(noteID: note.id).environment(model)
-            write(view, size: StickyLayout.defaultSize, to: directory.appendingPathComponent("note-\(note.flavor.rawValue).png"))
+            let name = note.kind == .markdown ? "markdown" : note.flavor.rawValue
+            let size = note.kind == .markdown ? CGSize(width: 300, height: 360) : StickyLayout.defaultSize
+            write(view, size: size, to: directory.appendingPathComponent("note-\(name).png"))
+        }
+        if let page = model.notes.first(where: { $0.kind == .markdown && !$0.isOnScreen }) {
+            write(PageView(noteID: page.id).environment(model), size: CGSize(width: 900, height: 820),
+                  to: directory.appendingPathComponent("page.png"))
+            MarkdownExporter.writePDF(page, to: directory.appendingPathComponent("page.pdf"))
         }
         if let note = model.notes.first(where: { !$0.isOnScreen }) {
             let sheet = NoteEditorSheet(noteID: note.id) {}.environment(model)
@@ -85,6 +92,42 @@ enum Snapshots {
                              content: [TextRun(text: "someday", style: bold), TextRun(text: "\n☐ learn to hand-pull noodles\n☐ visit sapporo")],
                              isOnScreen: false))
         model.store.add(Note(number: model.store.nextNumber, flavor: .prawnMee, content: [], isOnScreen: false))
+        model.store.add(Note(number: model.store.nextNumber, flavor: .pho, kind: .markdown, markdown: """
+            ## article notes
+            **hand-pulled** noodles need ==rested== dough, says [the piece](https://example.com)
+            - [x] read part one
+            - [ ] try the `2:1` ratio
+            - fold, pull, repeat
+                - every pull *doubles* the strands
+            > the noodle remembers every pull
+            """, isOnScreen: true))
+        model.store.add(Note(number: model.store.nextNumber, flavor: .japchae, kind: .markdown, markdown: """
+            # reading: the art of noodles
+            notes from [the article](https://example.com/noodles) — **hand-pulled** vs ==knife-cut==, and why *resting* matters.
+
+            ## key ideas
+            - dough rests for *at least* 30 minutes so the gluten relaxes
+            - stretching lines the gluten strands up
+                - fold, pull, repeat — each pull doubles the strands
+            - alkaline water (`kansui`) gives ramen its spring
+
+            ## to try
+            1. knead until smooth
+            2. rest, covered
+            3. pull ~~eight~~ seven times
+
+            - [x] read part one
+            - [ ] try the 2:1 flour-to-water ratio
+            - [ ] find a lamian place nearby
+
+            > the noodle remembers every pull
+
+            ---
+            ```
+            water = flour * 0.5
+            salt  = flour * 0.01
+            ```
+            """, isOnScreen: false))
         model.setSectionDescription(.ramen, "the week ahead — meetings, errands, and the odd someday")
         return model
     }

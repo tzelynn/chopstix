@@ -76,10 +76,6 @@ final class NoteTextView: NSTextView {
     @objc func cxToggleBulletList(_ sender: Any?) { toggleList(.bullet) }
     @objc func cxToggleChecklist(_ sender: Any?) { toggleList(.checklist) }
 
-    func perform(_ action: FormatAction) {
-        NSApp.sendAction(action.selector, to: self, from: nil)
-    }
-
     private func toggleStyle(_ flag: WritableKeyPath<RunStyle, Bool>) {
         guard let storage = textStorage else { return }
         let range = selectedRange()

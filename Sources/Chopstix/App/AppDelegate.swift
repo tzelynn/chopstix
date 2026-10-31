@@ -33,6 +33,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.newNote(onScreen: true)
     }
 
+    @objc func newMarkdownNote(_ sender: Any?) {
+        model.newMarkdownNote(onScreen: true)
+    }
+
     @objc func newMenuNote(_ sender: Any?) {
         model.editOnBoard(model.newNote(onScreen: false).id)
     }
@@ -70,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.toolTip = "chopstix"
         let menu = NSMenu()
         menu.addItem(withTitle: "New Sticky Note", action: #selector(newStickyNote(_:)), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "New Markdown Note", action: #selector(newMarkdownNote(_:)), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Show Menu Board", action: #selector(showBoard(_:)), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit chopstix", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")

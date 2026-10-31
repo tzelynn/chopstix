@@ -55,7 +55,11 @@ enum Flavor: String, Codable, CaseIterable, Identifiable {
     /// Band on the chopsticks. Udon's noodle colour is too close to the wood, so it borrows the steam blue.
     var lacquer: Color { self == .udon ? Color(hex: 0xA9BCCD) : accent }
 
+    var nsAccent: NSColor { NSColor(hex: palette.accent) }
     var nsAccentSoft: NSColor { NSColor(hex: palette.soft) }
+    var nsPaper: NSColor { NSColor(hex: palette.paper) }
+    var nsPaperDeep: NSColor { NSColor(hex: palette.deep) }
+    var nsLacquer: NSColor { self == .udon ? NSColor(hex: 0xA9BCCD) : nsAccent }
 
     private var palette: (paper: UInt32, deep: UInt32, accent: UInt32, soft: UInt32) {
         switch self {
