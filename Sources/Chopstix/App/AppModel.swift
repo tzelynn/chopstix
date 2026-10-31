@@ -239,7 +239,7 @@ final class AppModel {
         let b = RunStyle(bold: true)
         newNote(flavor: .ramen, onScreen: true, content: [
             TextRun(text: "welcome to chopstix", style: b),
-            TextRun(text: "\nyour notes are served fresh, held up by chopsticks.\n\n• drag the chopsticks to move me\n• drag my folded corner to resize\n• hover for the toolbar & flavours"),
+            TextRun(text: "\nyour notes are served fresh, held up by chopsticks.\n\n• drag the chopsticks to move me\n• drag my sides or bottom corners to resize\n• hover for the toolbar & flavours"),
         ])
         newNote(flavor: .prawnMee, onScreen: true, content: [
             TextRun(text: "today’s order", style: b),
