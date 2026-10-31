@@ -18,9 +18,21 @@ enum MainMenu {
 
         let file = submenu(in: main, title: "File")
         file.addItem(withTitle: "New Sticky Note", action: #selector(AppDelegate.newStickyNote(_:)), keyEquivalent: "n").target = target
+        let markdown = file.addItem(withTitle: "New Markdown Note", action: #selector(AppDelegate.newMarkdownNote(_:)), keyEquivalent: "n")
+        markdown.keyEquivalentModifierMask = [.command, .option]
+        markdown.target = target
         let inMenu = file.addItem(withTitle: "New Note in Menu", action: #selector(AppDelegate.newMenuNote(_:)), keyEquivalent: "n")
         inMenu.keyEquivalentModifierMask = [.command, .shift]
         inMenu.target = target
+        file.addItem(.separator())
+        // Markdown notes only; answered by the note's window (see `NoteHostWindow`).
+        file.addItem(withTitle: "Open as Page", action: #selector(NoteHostWindow.cxOpenAsPage(_:)), keyEquivalent: "\r")
+            .keyEquivalentModifierMask = [.command, .option]
+        file.addItem(withTitle: "Save", action: #selector(NoteHostWindow.saveDocument(_:)), keyEquivalent: "s")
+        file.addItem(withTitle: "Save As…", action: #selector(NoteHostWindow.saveDocumentAs(_:)), keyEquivalent: "s")
+            .keyEquivalentModifierMask = [.command, .shift]
+        file.addItem(withTitle: "Export as PDF…", action: #selector(NoteHostWindow.cxExportPDF(_:)), keyEquivalent: "e")
+            .keyEquivalentModifierMask = [.command, .shift]
         file.addItem(.separator())
         file.addItem(withTitle: "Show Menu Board", action: #selector(AppDelegate.showBoard(_:)), keyEquivalent: "0").target = target
         file.addItem(.separator())
@@ -35,12 +47,25 @@ enum MainMenu {
         edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
 
+        // Items a focused editor doesn't support (e.g. underline in markdown) are disabled automatically.
         let format = submenu(in: main, title: "Format")
-        for action in FormatAction.allCases {
-            if action == .bulletList { format.addItem(.separator()) }
-            let item = format.addItem(withTitle: action.title, action: action.selector, keyEquivalent: action.keyEquivalent)
-            item.keyEquivalentModifierMask = action.modifiers
+        func add(_ action: FormatAction) {
+            format.addItem(withTitle: action.title, action: action.selector, keyEquivalent: action.keyEquivalent)
+                .keyEquivalentModifierMask = action.modifiers
         }
+        func add(_ action: MarkdownAction) {
+            let item = format.addItem(withTitle: action.title, action: action.selector, keyEquivalent: action.shortcut?.key ?? "")
+            if let modifiers = action.shortcut?.modifiers { item.keyEquivalentModifierMask = modifiers }
+        }
+        [.bold, .italic, .underline, .strikethrough].forEach(add)
+        [.inlineCode, .highlight, .link].forEach(add)
+        format.addItem(.separator())
+        add(.bulletList)
+        add(.numberedList)
+        add(.checklist)
+        add(.quote)
+        format.addItem(.separator())
+        [.heading1, .heading2, .heading3, .body].forEach(add)
 
         let window = submenu(in: main, title: "Window")
         window.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")

@@ -12,10 +12,7 @@ struct StickyNoteView: View {
                 ChopsticksView(layer: .back, lacquer: note.flavor.lacquer)
 
                 NoteSurface(note: note, context: .sticky, autofocus: autofocus)
-                    .overlay(alignment: .bottomTrailing) {
-                        WindowResizeHandle(minSize: StickyLayout.minSize)
-                            .frame(width: StickyLayout.foldSize + 4, height: StickyLayout.foldSize + 4)
-                    }
+                    .overlay { resizeHandles }
                     .padding(StickyLayout.insets)
 
                 WindowDragArea()
@@ -25,6 +22,31 @@ struct StickyNoteView: View {
                 ChopsticksView(layer: .front, lacquer: note.flavor.lacquer)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    /// Edge and bottom-corner resize handles. The top edge is left to the drag strip
+    /// (which sits above these in the ZStack), so it keeps moving the note.
+    private var resizeHandles: some View {
+        let edge = StickyLayout.resizeEdgeThickness
+        let corner = StickyLayout.foldSize + 4
+        let min = StickyLayout.minSize
+        return ZStack {
+            WindowResizeHandle(position: .left, minSize: min)
+                .frame(width: edge)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            WindowResizeHandle(position: .right, minSize: min)
+                .frame(width: edge)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+            WindowResizeHandle(position: .bottom, minSize: min)
+                .frame(height: edge)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            WindowResizeHandle(position: .bottomLeft, minSize: min)
+                .frame(width: corner, height: corner)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            WindowResizeHandle(position: .bottomRight, minSize: min)
+                .frame(width: corner, height: corner)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         }
     }
 }

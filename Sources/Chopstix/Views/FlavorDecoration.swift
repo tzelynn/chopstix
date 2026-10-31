@@ -30,6 +30,17 @@ struct FlavorDecoration: View {
         }
     }
 
+    /// How far above the bottom edge the bottom-left garnishes reach, for a note of `size`.
+    /// Notes keep their text out of this band, so typing never runs under the garnishes.
+    static func bottomBand(for flavor: Flavor, size: CGSize, bottomInset: CGFloat, scale: CGFloat = 1, scalesWithSize: Bool = true) -> CGFloat {
+        let scale = (scalesWithSize ? Sizing.scale(for: size) : 1) * scale
+        let reach = Garnish.placements(for: flavor)
+            .filter { $0.corner == .bottomLeading }
+            .map { $0.offset.y + $0.garnish.radius * $0.scale }
+            .max() ?? 0
+        return (bottomInset + reach * scale).rounded(.up)
+    }
+
     var body: some View {
         Canvas { ctx, size in
             let scale = (scalesWithSize ? Sizing.scale(for: size) : 1) * self.scale
@@ -111,6 +122,17 @@ enum Garnish {
     }
 
     // MARK: Drawing (each garnish is centred on the origin, roughly 30pt across)
+
+    /// Roughly how far the drawing reaches from its centre, at scale 1.
+    var radius: CGFloat {
+        switch self {
+        case .prawn: 15
+        case .naruto, .lime, .noodles: 11
+        case .chili, .basil, .mushroom: 12
+        case .egg, .tofuPuff, .sesame, .steam: 9
+        case .scallion: 6
+        }
+    }
 
     func draw(in c: GraphicsContext, flavor: Flavor) {
         let accent = flavor.accent, soft = flavor.accentSoft

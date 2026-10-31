@@ -19,11 +19,40 @@ struct WindowDragArea: NSViewRepresentable {
     func updateNSView(_ nsView: DragView, context: Context) {}
 }
 
-/// Resizes its window from the bottom-right corner, keeping the top-left corner pinned.
+/// Resizes its window by dragging one of its edges or bottom corners, keeping the top edge pinned
+/// (the top of a sticky note is reserved for moving it).
 struct WindowResizeHandle: NSViewRepresentable {
+    enum Position {
+        case left, right, bottom, bottomLeft, bottomRight
+
+        var movesLeft: Bool { self == .left || self == .bottomLeft }
+        var movesRight: Bool { self == .right || self == .bottomRight }
+        var movesBottom: Bool { self == .bottom || self == .bottomLeft || self == .bottomRight }
+
+        var cursor: NSCursor {
+            if #available(macOS 15.0, *) {
+                let position: NSCursor.FrameResizePosition = switch self {
+                case .left: .left
+                case .right: .right
+                case .bottom: .bottom
+                case .bottomLeft: .bottomLeft
+                case .bottomRight: .bottomRight
+                }
+                return .frameResize(position: position, directions: .all)
+            }
+            return switch self {
+            case .left, .right: .resizeLeftRight
+            case .bottom: .resizeUpDown
+            case .bottomLeft, .bottomRight: .crosshair
+            }
+        }
+    }
+
+    var position: Position = .bottomRight
     var minSize: CGSize
 
     final class HandleView: NSView {
+        var position = Position.bottomRight
         var minSize = CGSize.zero
         private var startFrame = NSRect.zero
         private var startMouse = NSPoint.zero
@@ -31,11 +60,7 @@ struct WindowResizeHandle: NSViewRepresentable {
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
         override func resetCursorRects() {
-            if #available(macOS 15.0, *) {
-                addCursorRect(bounds, cursor: .frameResize(position: .bottomRight, directions: .all))
-            } else {
-                addCursorRect(bounds, cursor: .crosshair)
-            }
+            addCursorRect(bounds, cursor: position.cursor)
         }
 
         override func mouseDown(with event: NSEvent) {
@@ -47,21 +72,38 @@ struct WindowResizeHandle: NSViewRepresentable {
         override func mouseDragged(with event: NSEvent) {
             guard let window else { return }
             let mouse = NSEvent.mouseLocation
-            let width = max(minSize.width, startFrame.width + (mouse.x - startMouse.x))
-            let height = max(minSize.height, startFrame.height - (mouse.y - startMouse.y))
+            let dx = mouse.x - startMouse.x
+            let dy = mouse.y - startMouse.y
+
+            var width = startFrame.width
+            if position.movesRight { width += dx }
+            if position.movesLeft { width -= dx }
+            width = max(minSize.width, width)
+
+            var height = startFrame.height
+            if position.movesBottom { height -= dy }
+            height = max(minSize.height, height)
+
+            // Dragging the left edge pins the right edge instead of the left.
+            let x = position.movesLeft ? startFrame.maxX - width : startFrame.minX
             // Screen coordinates grow upward, so pin the top edge by moving the origin down.
-            let frame = NSRect(x: startFrame.minX, y: startFrame.maxY - height, width: width, height: height)
+            let frame = NSRect(x: x, y: startFrame.maxY - height, width: width, height: height)
             window.setFrame(frame, display: true)
         }
     }
 
     func makeNSView(context: Context) -> HandleView {
         let view = HandleView()
+        view.position = position
         view.minSize = minSize
         return view
     }
 
     func updateNSView(_ nsView: HandleView, context: Context) {
+        if nsView.position != position {
+            nsView.position = position
+            nsView.window?.invalidateCursorRects(for: nsView)
+        }
         nsView.minSize = minSize
     }
 }

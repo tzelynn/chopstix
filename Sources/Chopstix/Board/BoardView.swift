@@ -88,6 +88,7 @@ struct BoardView: View {
             Spacer()
             OrderButton(
                 onNewSticky: { orderNote(onScreen: true) },
+                onNewMarkdown: { model.newMarkdownNote(onScreen: true) },
                 onNewInMenu: { orderNote(onScreen: false) },
                 onFlavor: { flavor in orderNote(onScreen: true, flavor: flavor) }
             )
@@ -188,6 +189,7 @@ struct FilterTab: View {
 /// "Order a note" — a stamp-like button, with a flavour menu beside it.
 struct OrderButton: View {
     let onNewSticky: () -> Void
+    let onNewMarkdown: () -> Void
     let onNewInMenu: () -> Void
     let onFlavor: (Flavor) -> Void
     @State private var hovering = false
@@ -213,6 +215,7 @@ struct OrderButton: View {
 
             Menu {
                 Button("New Sticky Note", action: onNewSticky)
+                Button("New Markdown Note", action: onNewMarkdown)
                 Button("New Note in Menu", action: onNewInMenu)
                 Divider()
                 Section("Choose a flavour") {

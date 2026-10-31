@@ -34,6 +34,8 @@ enum StickyLayout {
     static let defaultSize = CGSize(width: 260, height: 264)
     static let minSize = CGSize(width: 230, height: 160)
     static let foldSize: CGFloat = 18
+    /// Width of the invisible resize strips along the note's left, right and bottom edges.
+    static let resizeEdgeThickness: CGFloat = 6
     static let cornerRadius: CGFloat = 5
 }
 

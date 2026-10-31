@@ -13,6 +13,7 @@ struct NoteCard: View {
                 Text(String(format: "No. %02d", note.number))
                     .font(Theme.serif(11).italic())
                     .foregroundStyle(Theme.ink.opacity(0.5))
+                if note.kind == .markdown { MarkdownTag() }
                 Spacer()
                 if note.isOnScreen {
                     HStack(spacing: 4) {
@@ -61,10 +62,15 @@ struct NoteCard: View {
         .onHover { inside in withAnimation(.easeOut(duration: 0.15)) { hovering = inside } }
         .onTapGesture(perform: open)
         .contextMenu {
-            Button(note.isOnScreen ? "Show on Screen" : "Edit") { open() }
+            Button(openTitle) { open() }
             NoteMenuItems(note: note, context: .board)
         }
-        .help(note.isOnScreen ? "Click to bring this note forward" : "Click to edit")
+        .help(note.isOnScreen ? "Click to bring this note forward" : note.kind == .markdown ? "Click to open as a page" : "Click to edit")
+    }
+
+    private var openTitle: String {
+        if note.isOnScreen { return "Show on Screen" }
+        return note.kind == .markdown ? "Open as Page" : "Edit"
     }
 
     private var actions: some View {
@@ -78,6 +84,19 @@ struct NoteCard: View {
         }
         .padding(2)
         .background(Capsule().fill(note.flavor.paper.opacity(0.9)))
+    }
+}
+
+/// A little menu-style tag (like a dish's "(v)") marking a markdown note.
+struct MarkdownTag: View {
+    var body: some View {
+        Text("md")
+            .font(Theme.rounded(9, .semibold))
+            .foregroundStyle(Theme.ink.opacity(0.5))
+            .padding(.horizontal, 4)
+            .padding(.vertical, 0.5)
+            .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(Theme.ink.opacity(0.3), lineWidth: 0.8))
+            .help("Markdown note")
     }
 }
 
