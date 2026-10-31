@@ -74,7 +74,7 @@ enum MarkdownAction: CaseIterable, Identifiable {
 
 /// The markdown editor: plain markdown text, styled as it's typed by `MarkdownStyler`, with
 /// syntax tucked away by `MarkdownLayoutManager` everywhere but the line being edited.
-final class MarkdownTextView: NSTextView, NSTextStorageDelegate {
+final class MarkdownTextView: NSTextView {
     private(set) var markdownLayout: MarkdownLayoutManager!
     private var lastFenceCount = 0
 
@@ -93,7 +93,7 @@ final class MarkdownTextView: NSTextView, NSTextStorageDelegate {
 
     /// Builds the TextKit 1 stack around a `MarkdownLayoutManager`.
     static func make(theme: MarkdownTheme) -> MarkdownTextView {
-        let storage = NSTextStorage()
+        let storage = MarkdownTextStorage()
         let layout = MarkdownLayoutManager(theme: theme)
         storage.addLayoutManager(layout)
         let container = NSTextContainer(size: NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
@@ -102,7 +102,11 @@ final class MarkdownTextView: NSTextView, NSTextStorageDelegate {
 
         let view = MarkdownTextView(frame: .zero, textContainer: container)
         view.markdownLayout = layout
-        storage.delegate = view
+        storage.didEditCharacters = { [weak view] edited in
+            view?.restyle(edited)
+            // The selection moved before the restyle; reveal again with code blocks known.
+            view?.updateRevealedRange()
+        }
         view.isRichText = false // pasted and dropped text is always plain markdown
         view.allowsUndo = true
         view.importsGraphics = false
@@ -114,22 +118,18 @@ final class MarkdownTextView: NSTextView, NSTextStorageDelegate {
         view.isAutomaticTextReplacementEnabled = false
         view.insertionPointColor = theme.ink
         view.typingAttributes = theme.bodyAttributes
+        NotificationCenter.default.addObserver(view, selector: #selector(selectionDidChange(_:)),
+                                               name: NSTextView.didChangeSelectionNotification, object: view)
         return view
     }
 
     var markdown: String {
         get { string }
-        // Styled by `willProcessEditing`, like any other edit.
+        // Styled by `MarkdownTextStorage`, like any other edit.
         set { textStorage?.replaceCharacters(in: NSRange(location: 0, length: (string as NSString).length), with: newValue) }
     }
 
     // MARK: Styling
-
-    func textStorage(_ textStorage: NSTextStorage, willProcessEditing editedMask: NSTextStorageEditActions,
-                     range editedRange: NSRange, changeInLength delta: Int) {
-        guard editedMask.contains(.editedCharacters) else { return }
-        restyle(editedRange)
-    }
 
     /// Restyles the paragraphs around `edited`, or everything if `nil` or a code fence changed
     /// (a fence can restyle the whole rest of the note).
@@ -150,9 +150,10 @@ final class MarkdownTextView: NSTextView, NSTextStorageDelegate {
 
     // MARK: Revealing syntax around the caret
 
-    override func setSelectedRanges(_ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting: Bool) {
-        super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelecting)
-        if !stillSelecting { updateRevealedRange() }
+    /// Typing moves the selection without going through `setSelectedRanges`, so follow the
+    /// notification, which every selection change posts.
+    @objc private func selectionDidChange(_ notification: Notification) {
+        updateRevealedRange()
     }
 
     override func becomeFirstResponder() -> Bool {
@@ -170,8 +171,25 @@ final class MarkdownTextView: NSTextView, NSTextStorageDelegate {
     private func updateRevealedRange() {
         guard let markdownLayout, window?.firstResponder === self else { return }
         let string = self.string as NSString
-        let selection = NSIntersectionRange(selectedRange(), NSRange(location: 0, length: string.length))
-        markdownLayout.setRevealed(string.paragraphRange(for: selection))
+        let all = NSRange(location: 0, length: string.length)
+        // Not `NSIntersectionRange`, which turns any empty selection (a plain caret) into {0, 0}.
+        let selected = selectedRange()
+        let start = min(selected.location, string.length)
+        let selection = NSRange(location: start, length: min(selected.length, string.length - start))
+        var revealed = string.paragraphRange(for: selection)
+        // Inside a code block, show both fences, so it's clear where the block starts and ends.
+        if let storage = textStorage {
+            // An empty last line has no characters of its own; it belongs to whatever ends just before it.
+            let edges = revealed.length == 0 ? [revealed.location - 1] : [revealed.location, NSMaxRange(revealed) - 1]
+            for edge in edges where edge >= 0 && edge < storage.length {
+                var block = NSRange()
+                let value = storage.attribute(.cxDecoration, at: edge, longestEffectiveRange: &block, in: all) as? Int
+                if value == MarkdownDecoration.codeBlock.rawValue {
+                    revealed = NSUnionRange(revealed, string.paragraphRange(for: block))
+                }
+            }
+        }
+        markdownLayout.setRevealed(revealed)
     }
 
     // MARK: Applying changes
@@ -396,5 +414,42 @@ final class MarkdownTextView: NSTextView, NSTextStorageDelegate {
               !text.contains(where: \.isWhitespace),
               let url = URL(string: text), let scheme = url.scheme, ["http", "https", "mailto"].contains(scheme) else { return nil }
         return text
+    }
+}
+
+/// Text storage that restyles after each character edit, as an edit of its own.
+///
+/// Restyling in `willProcessEditing` widens the edit to the whole restyled paragraph, and
+/// NSTextView then moves the caret to the end of it — so typing mid-line jumped to the end of
+/// the line. An attributes-only edit afterwards leaves the selection alone.
+final class MarkdownTextStorage: NSTextStorage {
+    private let backing = NSMutableAttributedString()
+    /// Called with the edited range (in the new text) after each change to the characters.
+    var didEditCharacters: ((NSRange) -> Void)?
+
+    override var string: String { backing.string }
+
+    override func attributes(at location: Int, effectiveRange range: NSRangePointer?) -> [NSAttributedString.Key: Any] {
+        backing.attributes(at: location, effectiveRange: range)
+    }
+
+    override func replaceCharacters(in range: NSRange, with str: String) {
+        backing.replaceCharacters(in: range, with: str)
+        edited(.editedCharacters, range: range, changeInLength: (str as NSString).length - range.length)
+    }
+
+    override func setAttributes(_ attrs: [NSAttributedString.Key: Any]?, range: NSRange) {
+        backing.setAttributes(attrs, range: range)
+        edited(.editedAttributes, range: range, changeInLength: 0)
+    }
+
+    override func processEditing() {
+        let charactersChanged = editedMask.contains(.editedCharacters)
+        let range = editedRange
+        super.processEditing()
+        guard charactersChanged, let didEditCharacters else { return }
+        beginEditing()
+        didEditCharacters(range)
+        endEditing()
     }
 }

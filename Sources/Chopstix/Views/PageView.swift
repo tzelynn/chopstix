@@ -217,7 +217,9 @@ private struct PageSheet: View {
                         }
                     }
                     .padding(.top, 24)
-                    .padding(.bottom, PageLayout.fold)
+                    // Stops above the garnishes, which make a footer the text never runs under.
+                    .padding(.bottom, max(PageLayout.fold, FlavorDecoration.bottomBand(
+                        for: note.flavor, size: geometry.size, bottomInset: 10, scale: 1.3, scalesWithSize: false) + 6))
                 }
                 .compositingGroup()
                 .shadow(color: .black.opacity(0.10), radius: 1, y: 0.5)

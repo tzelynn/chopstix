@@ -38,7 +38,38 @@ final class MarkdownLayoutManager: NSLayoutManager, NSLayoutManagerDelegate {
 
     private func isRevealed(_ index: Int) -> Bool {
         guard let revealed else { return false }
-        return index >= revealed.location && index <= NSMaxRange(revealed)
+        return index >= revealed.location && index < NSMaxRange(revealed)
+    }
+
+    // MARK: Collapsing hidden code fences
+
+    /// A hidden ``` line would otherwise leave a blank, clickable line at the top and bottom of
+    /// its code block (and typing there lands on the fence). Squash it down to a little padding.
+    func layoutManager(_ layoutManager: NSLayoutManager,
+                       shouldSetLineFragmentRect lineFragmentRect: UnsafeMutablePointer<NSRect>,
+                       lineFragmentUsedRect: UnsafeMutablePointer<NSRect>,
+                       baselineOffset: UnsafeMutablePointer<CGFloat>,
+                       in textContainer: NSTextContainer, forGlyphRange glyphRange: NSRange) -> Bool {
+        guard let storage = textStorage, isHiddenFence(characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil), in: storage) else { return false }
+        let height = (theme.baseSize * 0.45).rounded()
+        lineFragmentRect.pointee.size.height = height
+        lineFragmentUsedRect.pointee.size.height = height
+        baselineOffset.pointee = min(baselineOffset.pointee, height)
+        return true
+    }
+
+    private func isHiddenFence(_ characters: NSRange, in storage: NSTextStorage) -> Bool {
+        let string = storage.string as NSString
+        var content = characters
+        while content.length > 0, CharacterSet.newlines.contains(Unicode.Scalar(string.character(at: NSMaxRange(content) - 1)) ?? " ") {
+            content.length -= 1
+        }
+        guard content.length > 0, !isRevealed(content.location),
+              (storage.attribute(.cxDecoration, at: content.location, effectiveRange: nil) as? Int) == MarkdownDecoration.codeBlock.rawValue,
+              string.substring(with: content).trimmingCharacters(in: .whitespaces).hasPrefix("```") else { return false }
+        var hidden = NSRange()
+        return storage.attribute(.cxHidden, at: content.location, longestEffectiveRange: &hidden, in: content) != nil
+            && NSMaxRange(hidden) >= NSMaxRange(content)
     }
 
     // MARK: Hiding syntax

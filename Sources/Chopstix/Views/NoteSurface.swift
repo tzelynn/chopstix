@@ -13,11 +13,27 @@ struct NoteSurface: View {
     @State private var editor = EditorController()
     @State private var hovering = false
 
+    /// Bottom garnishes sit just above the toolbar's space so they never collide.
+    private static let garnishInset: CGFloat = 24
+
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        GeometryReader { geometry in
+            surface(size: geometry.size)
+        }
+        .compositingGroup()
+        .shadow(color: .black.opacity(0.10), radius: 1, y: 0.5)
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 5)
+        .onHover { inside in
+            withAnimation(.easeOut(duration: 0.15)) { hovering = inside }
+        }
+    }
+
+    private func surface(size: CGSize) -> some View {
+        // The garnishes and toolbar make a footer the text stops above, rather than running under.
+        let band = FlavorDecoration.bottomBand(for: note.flavor, size: size, bottomInset: Self.garnishInset)
+        return ZStack(alignment: .topLeading) {
             NotePaper(flavor: note.flavor)
-            // Bottom garnishes sit just above the toolbar's space so they never collide.
-            FlavorDecoration(flavor: note.flavor, topInset: context == .sticky ? 40 : 26, bottomInset: 24)
+            FlavorDecoration(flavor: note.flavor, topInset: context == .sticky ? 40 : 26, bottomInset: Self.garnishInset)
 
             VStack(spacing: 0) {
                 textEditor
@@ -33,16 +49,11 @@ struct NoteSurface: View {
                 }
                 .padding(.top, context == .sticky ? StickyLayout.textTopPadding : 12)
                 .padding(.horizontal, 8)
+                .padding(.bottom, max(0, band + 6 - NoteToolbar.height))
 
                 NoteToolbar(note: note, context: context, editor: editor)
                     .opacity(hovering || context == .board ? 1 : 0)
             }
-        }
-        .compositingGroup()
-        .shadow(color: .black.opacity(0.10), radius: 1, y: 0.5)
-        .shadow(color: .black.opacity(0.12), radius: 8, y: 5)
-        .onHover { inside in
-            withAnimation(.easeOut(duration: 0.15)) { hovering = inside }
         }
     }
 
@@ -70,6 +81,8 @@ struct NoteSurface: View {
 
 /// Formatting buttons plus the note's menu. Fades in when hovering a sticky note.
 struct NoteToolbar: View {
+    static let height: CGFloat = 30
+
     @Environment(AppModel.self) private var model
     let note: Note
     let context: NoteSurface.Context
@@ -112,7 +125,7 @@ struct NoteToolbar: View {
         }
         .padding(.leading, 8)
         .padding(.trailing, StickyLayout.foldSize + 4)
-        .frame(height: 30)
+        .frame(height: Self.height)
     }
 }
 
