@@ -403,6 +403,7 @@ struct SectionDescription: View {
                     .onExitCommand { editing = false }
                     .onChange(of: focused) { _, isFocused in if !isFocused { commit() } }
                     .onAppear { DispatchQueue.main.async { focused = true } }
+                    .modifier(DescriptionField(highlighted: true, dashed: false))
             } else if let text {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text(text)
@@ -413,7 +414,7 @@ struct SectionDescription: View {
                         .foregroundStyle(Theme.inkFaint)
                         .opacity(hovering ? 1 : 0)
                 }
-                .contentShape(Rectangle())
+                .modifier(DescriptionField(highlighted: hovering, dashed: false))
                 .onTapGesture(perform: beginEditing)
                 .onHover { hovering = $0 }
                 .help("Click to edit this description")
@@ -422,21 +423,24 @@ struct SectionDescription: View {
                     Button("Remove Section Description") { model.setSectionDescription(flavor, nil) }
                 }
             } else {
+                // The whole free stretch of the line is the target, outlined on hover so it reads as a field.
                 Button(action: beginEditing) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 5) {
                         Image(systemName: "plus").font(.system(size: 9, weight: .semibold))
                         Text("add a description")
                     }
-                    .foregroundStyle(Theme.inkFaint)
-                    .contentShape(Rectangle())
+                    .foregroundStyle(hovering ? Theme.inkSoft : Theme.inkFaint)
+                    .modifier(DescriptionField(highlighted: hovering, dashed: true))
                 }
                 .buttonStyle(.plain)
-                .opacity(sectionHovered ? 1 : 0)
+                .onHover { hovering = $0 }
+                .opacity(sectionHovered || hovering ? 1 : 0)
                 .help("Describe what this section is for")
             }
         }
         .font(Theme.serif(13.5))
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Pull the padded box back so its text stays aligned with the header above.
+        .padding(.leading, -DescriptionField.inset)
     }
 
     private func beginEditing() {
@@ -448,6 +452,25 @@ struct SectionDescription: View {
         guard editing else { return }
         model.setSectionDescription(flavor, draft)
         editing = false
+    }
+}
+
+/// The padded, full-width box a section description sits in, so the whole line is clickable.
+/// Tinted (and outlined, when `dashed`) while highlighted.
+private struct DescriptionField: ViewModifier {
+    static let inset: CGFloat = 8
+    let highlighted: Bool
+    let dashed: Bool
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 6)
+        content
+            .padding(.horizontal, Self.inset)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, minHeight: 26, alignment: .leading)
+            .background(shape.fill(Theme.ink.opacity(highlighted ? 0.045 : 0)))
+            .overlay(shape.strokeBorder(Theme.inkFaint.opacity(highlighted && dashed ? 0.7 : 0), style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
+            .contentShape(shape)
     }
 }
 
