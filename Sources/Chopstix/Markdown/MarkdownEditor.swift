@@ -1,6 +1,25 @@
 import SwiftUI
 
-/// SwiftUI wrapper around `MarkdownTextView`. Like `RichTextEditor`, the text is loaded once
+/// Lets SwiftUI controls (the note toolbars) drive a specific note's `MarkdownTextView`.
+final class EditorController {
+    weak var textView: NSTextView?
+
+    func perform(_ action: FormatAction) { perform(action.selector) }
+
+    func perform(_ selector: Selector) {
+        guard let textView else { return }
+        textView.window?.makeFirstResponder(textView)
+        NSApp.sendAction(selector, to: textView, from: nil)
+    }
+
+    func focus(selectingEnd: Bool = true) {
+        guard let textView else { return }
+        textView.window?.makeFirstResponder(textView)
+        if selectingEnd { textView.setSelectedRange(NSRange(location: textView.string.utf16.count, length: 0)) }
+    }
+}
+
+/// SwiftUI wrapper around `MarkdownTextView`. The text is loaded once
 /// from `initialText`; after that the text view owns it and reports changes through `onChange`.
 struct MarkdownEditor: NSViewRepresentable {
     let initialText: String

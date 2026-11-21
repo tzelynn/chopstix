@@ -11,7 +11,7 @@ struct StickyNoteView: View {
             ZStack(alignment: .top) {
                 ChopsticksView(layer: .back, lacquer: note.flavor.lacquer)
 
-                NoteSurface(note: note, context: .sticky, autofocus: autofocus)
+                NoteSurface(note: note, autofocus: autofocus)
                     .overlay { resizeHandles }
                     .padding(StickyLayout.insets)
 

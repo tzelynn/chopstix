@@ -17,15 +17,12 @@ enum MainMenu {
         app.addItem(withTitle: "Quit chopstix", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         let file = submenu(in: main, title: "File")
-        file.addItem(withTitle: "New Sticky Note", action: #selector(AppDelegate.newStickyNote(_:)), keyEquivalent: "n").target = target
-        let markdown = file.addItem(withTitle: "New Markdown Note", action: #selector(AppDelegate.newMarkdownNote(_:)), keyEquivalent: "n")
-        markdown.keyEquivalentModifierMask = [.command, .option]
-        markdown.target = target
+        file.addItem(withTitle: "New Note", action: #selector(AppDelegate.newNote(_:)), keyEquivalent: "n").target = target
         let inMenu = file.addItem(withTitle: "New Note in Menu", action: #selector(AppDelegate.newMenuNote(_:)), keyEquivalent: "n")
         inMenu.keyEquivalentModifierMask = [.command, .shift]
         inMenu.target = target
         file.addItem(.separator())
-        // Markdown notes only; answered by the note's window (see `NoteHostWindow`).
+        // Answered by the note's window (see `NoteHostWindow`).
         file.addItem(withTitle: "Open as Page", action: #selector(NoteHostWindow.cxOpenAsPage(_:)), keyEquivalent: "\r")
             .keyEquivalentModifierMask = [.command, .option]
         file.addItem(withTitle: "Save", action: #selector(NoteHostWindow.saveDocument(_:)), keyEquivalent: "s")
@@ -47,7 +44,7 @@ enum MainMenu {
         edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
 
-        // Items a focused editor doesn't support (e.g. underline in markdown) are disabled automatically.
+        // Items go down the responder chain, so they're disabled unless a note editor has focus.
         let format = submenu(in: main, title: "Format")
         func add(_ action: FormatAction) {
             format.addItem(withTitle: action.title, action: action.selector, keyEquivalent: action.keyEquivalent)
@@ -57,7 +54,7 @@ enum MainMenu {
             let item = format.addItem(withTitle: action.title, action: action.selector, keyEquivalent: action.shortcut?.key ?? "")
             if let modifiers = action.shortcut?.modifiers { item.keyEquivalentModifierMask = modifiers }
         }
-        [.bold, .italic, .underline, .strikethrough].forEach(add)
+        [.bold, .italic, .strikethrough].forEach(add)
         [.inlineCode, .highlight, .link].forEach(add)
         format.addItem(.separator())
         add(.bulletList)

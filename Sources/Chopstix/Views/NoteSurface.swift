@@ -1,13 +1,9 @@
 import SwiftUI
 
-/// A note's paper, garnish, editor and hover toolbar. Used both for sticky notes on the
-/// screen and for editing in-app notes on the board.
+/// A note's paper, garnish, editor and hover toolbar, for a sticky note on the screen.
 struct NoteSurface: View {
-    enum Context { case sticky, board }
-
     @Environment(AppModel.self) private var model
     let note: Note
-    let context: Context
     var autofocus = false
 
     @State private var editor = EditorController()
@@ -33,13 +29,13 @@ struct NoteSurface: View {
         let band = FlavorDecoration.bottomBand(for: note.flavor, size: size, bottomInset: Self.garnishInset)
         return ZStack(alignment: .topLeading) {
             NotePaper(flavor: note.flavor)
-            FlavorDecoration(flavor: note.flavor, topInset: context == .sticky ? 40 : 26, bottomInset: Self.garnishInset)
+            FlavorDecoration(flavor: note.flavor, topInset: 40, bottomInset: Self.garnishInset)
 
             VStack(spacing: 0) {
                 textEditor
                 .overlay(alignment: .topLeading) {
-                    if isBlank {
-                        Text(note.kind == .markdown ? "jot something down… (/ for blocks)" : "jot something down…")
+                    if note.markdown.isEmpty {
+                        Text("jot something down… (/ for blocks)")
                             .font(Theme.rounded(NoteTextStyle.fontSize))
                             .foregroundStyle(Theme.ink.opacity(0.35))
                             .padding(.leading, 6)
@@ -47,35 +43,20 @@ struct NoteSurface: View {
                             .allowsHitTesting(false)
                     }
                 }
-                .padding(.top, context == .sticky ? StickyLayout.textTopPadding : 12)
+                .padding(.top, StickyLayout.textTopPadding)
                 .padding(.horizontal, 8)
                 .padding(.bottom, max(0, band + 6 - NoteToolbar.height))
 
-                NoteToolbar(note: note, context: context, editor: editor)
-                    .opacity(hovering || context == .board ? 1 : 0)
+                NoteToolbar(note: note, editor: editor)
+                    .opacity(hovering ? 1 : 0)
             }
         }
     }
 
-    /// Sticky notes edit rich text; markdown notes edit markdown. Keyed by kind so converting a
-    /// note swaps in the right editor.
-    @ViewBuilder private var textEditor: some View {
-        switch note.kind {
-        case .sticky:
-            RichTextEditor(initialContent: note.content, flavor: note.flavor, controller: editor, autofocus: autofocus) {
-                model.setContent(note.id, $0)
-            }
-            .id(NoteKind.sticky)
-        case .markdown:
-            MarkdownEditor(initialText: note.markdown, theme: .sticky(note.flavor), controller: editor, autofocus: autofocus) {
-                model.setMarkdown(note.id, $0)
-            }
-            .id(NoteKind.markdown)
+    private var textEditor: some View {
+        MarkdownEditor(initialText: note.markdown, theme: .sticky(note.flavor), controller: editor, autofocus: autofocus) {
+            model.setMarkdown(note.id, $0)
         }
-    }
-
-    private var isBlank: Bool {
-        note.kind == .markdown ? note.markdown.isEmpty : note.plainText.isEmpty
     }
 }
 
@@ -85,34 +66,21 @@ struct NoteToolbar: View {
 
     @Environment(AppModel.self) private var model
     let note: Note
-    let context: NoteSurface.Context
     let editor: EditorController
 
     var body: some View {
         HStack(spacing: 1) {
-            switch note.kind {
-            case .sticky:
-                ForEach(FormatAction.allCases) { action in
-                    ToolbarIcon(symbol: action.symbol, help: action.shortcutHint) { editor.perform(action) }
-                    if action == .strikethrough { ToolbarDivider() }
-                }
-            case .markdown:
-                // Kept short to fit the narrowest note; the rest are in the Format menu and `/` menu.
-                ToolbarIcon(symbol: "textformat.size", help: "Heading  ⌥⌘1–3") { editor.perform(MarkdownAction.cycleHeading.selector) }
-                ToolbarIcon(symbol: "bold", help: FormatAction.bold.shortcutHint) { editor.perform(.bold) }
-                ToolbarDivider()
-                ToolbarIcon(symbol: "list.bullet", help: FormatAction.bulletList.shortcutHint) { editor.perform(.bulletList) }
-                ToolbarIcon(symbol: "checklist", help: "To-do  ⇧⌘L") { editor.perform(.checklist) }
-            }
+            // Kept short to fit the narrowest note; the rest are in the Format menu and `/` menu.
+            ToolbarIcon(symbol: "textformat.size", help: "Heading  ⌥⌘1–3") { editor.perform(MarkdownAction.cycleHeading.selector) }
+            ToolbarIcon(symbol: "bold", help: FormatAction.bold.shortcutHint) { editor.perform(.bold) }
+            ToolbarDivider()
+            ToolbarIcon(symbol: "list.bullet", help: FormatAction.bulletList.shortcutHint) { editor.perform(.bulletList) }
+            ToolbarIcon(symbol: "checklist", help: "To-do  ⇧⌘L") { editor.perform(.checklist) }
             Spacer(minLength: 2)
-            if note.kind == .markdown {
-                ToolbarIcon(symbol: "arrow.up.left.and.arrow.down.right", help: "Open as Page  ⌥⌘↩") { model.openPage(note.id) }
-            }
-            if context == .sticky {
-                ToolbarIcon(symbol: "tray.and.arrow.down", help: "Return to Menu Board") { model.returnToBoard(note.id) }
-            }
+            ToolbarIcon(symbol: "arrow.up.left.and.arrow.down.right", help: "Open as Page  ⌥⌘↩") { model.openPage(note.id) }
+            ToolbarIcon(symbol: "tray.and.arrow.down", help: "Return to Menu Board") { model.returnToBoard(note.id) }
             Menu {
-                NoteMenuItems(note: note, context: context)
+                NoteMenuItems(note: note, context: .sticky)
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 13, weight: .medium))
@@ -158,9 +126,12 @@ struct ToolbarIcon: View {
 
 /// Menu entries shared by the note toolbar and board cards.
 struct NoteMenuItems: View {
+    /// Where the menu is shown: on the note itself, or on its board card.
+    enum Context { case sticky, board }
+
     @Environment(AppModel.self) private var model
     let note: Note
-    let context: NoteSurface.Context
+    let context: Context
     var onDelete: () -> Void = {}
 
     var body: some View {
@@ -168,14 +139,9 @@ struct NoteMenuItems: View {
 
         Divider()
 
-        switch note.kind {
-        case .markdown:
-            Button("Open as Page") { model.openPage(note.id) }
-            Button("Save as Markdown…") { model.saveMarkdown(note.id) }
-            Button("Export as PDF…") { model.exportPDF(note.id) }
-        case .sticky:
-            Button("Convert to Markdown Note…") { model.convertToMarkdown(note.id) }
-        }
+        Button("Open as Page") { model.openPage(note.id) }
+        Button("Save as Markdown…") { model.saveMarkdown(note.id) }
+        Button("Export as PDF…") { model.exportPDF(note.id) }
 
         Divider()
 

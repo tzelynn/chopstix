@@ -1,7 +1,6 @@
 import AppKit
 
-/// Markdown-only commands, for the Format menu and toolbars. Commands shared with sticky notes
-/// (bold, italic, lists…) reuse `FormatAction`'s selectors, so one shortcut works in both editors.
+/// Markdown block and inline commands beyond `FormatAction`, for the Format menu and toolbars.
 enum MarkdownAction: CaseIterable, Identifiable {
     case heading1, heading2, heading3, body, cycleHeading, numberedList, quote, inlineCode, highlight, link
 
@@ -208,7 +207,7 @@ final class MarkdownTextView: NSTextView {
 
     private var nsString: NSString { string as NSString }
 
-    // MARK: Commands shared with sticky notes (see `FormatAction`)
+    // MARK: Format commands (see `FormatAction`)
 
     @objc func cxToggleBold(_ sender: Any?) { wrap("**") }
     @objc func cxToggleItalic(_ sender: Any?) { wrap("*") }
@@ -451,5 +450,16 @@ final class MarkdownTextStorage: NSTextStorage {
         beginEditing()
         didEditCharacters(range)
         endEditing()
+        // Still inside this edit, so the restyle is folded into it rather than processed as an
+        // edit of its own, and the layout managers (already told about the characters) never
+        // hear about the new fonts. Any glyph generated in between — typically the last
+        // character, where the caret sits — would keep the old font's glyph ID and draw as
+        // the wrong character. Tell them about the restyled range directly.
+        let restyled = NSIntersectionRange(editedRange, NSRange(location: 0, length: length))
+        guard restyled.length > 0 else { return }
+        for layoutManager in layoutManagers {
+            layoutManager.processEditing(for: self, edited: .editedAttributes, range: restyled,
+                                         changeInLength: 0, invalidatedRange: restyled)
+        }
     }
 }

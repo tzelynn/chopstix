@@ -10,18 +10,15 @@ enum Snapshots {
 
         for note in model.notes where note.isOnScreen {
             let view = StickyNoteView(noteID: note.id).environment(model)
-            let name = note.kind == .markdown ? "markdown" : note.flavor.rawValue
-            let size = note.kind == .markdown ? CGSize(width: 300, height: 360) : StickyLayout.defaultSize
+            let tall = note.markdown.count > 200
+            let name = tall ? "markdown" : note.flavor.rawValue
+            let size = tall ? CGSize(width: 300, height: 360) : StickyLayout.defaultSize
             write(view, size: size, to: directory.appendingPathComponent("note-\(name).png"))
         }
-        if let page = model.notes.first(where: { $0.kind == .markdown && !$0.isOnScreen }) {
+        if let page = model.notes.last(where: { !$0.isOnScreen }) {
             write(PageView(noteID: page.id).environment(model), size: CGSize(width: 900, height: 820),
                   to: directory.appendingPathComponent("page.png"))
             MarkdownExporter.writePDF(page, to: directory.appendingPathComponent("page.pdf"))
-        }
-        if let note = model.notes.first(where: { !$0.isOnScreen }) {
-            let sheet = NoteEditorSheet(noteID: note.id) {}.environment(model)
-            write(sheet, size: CGSize(width: 440, height: 480), to: directory.appendingPathComponent("editor-sheet.png"))
         }
         write(BoardView().environment(model), size: CGSize(width: 900, height: 1500), to: directory.appendingPathComponent("board.png"))
         write(AppIconView(), size: CGSize(width: 512, height: 512), to: directory.appendingPathComponent("icon.png"))
@@ -75,24 +72,22 @@ enum Snapshots {
     private static func sampleModel() -> AppModel {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("chopstix-snapshots-\(UUID().uuidString)")
         let model = AppModel(store: NoteStore(directory: dir))
-        let bold = RunStyle(bold: true)
-        let samples: [(Flavor, [TextRun])] = [
-            (.prawnMee, [TextRun(text: "groceries", style: bold), TextRun(text: "\n☑ prawns\n☐ yellow noodles\n☐ kangkong\n☐ sambal")]),
-            (.ramen, [TextRun(text: "thursday", style: bold), TextRun(text: "\n• standup at 10\n• "), TextRun(text: "send deck", style: RunStyle(underline: true)), TextRun(text: " to mei\n• gym")]),
-            (.matchaSoba, [TextRun(text: "remember to "), TextRun(text: "breathe", style: RunStyle(italic: true)), TextRun(text: " 🌿")]),
-            (.laksa, [TextRun(text: "ideas", style: bold), TextRun(text: "\nhot pot night with the team?\n"), TextRun(text: "too spicy", style: RunStyle(strikethrough: true)), TextRun(text: " just right")]),
-            (.pho, [TextRun(text: "reading list", style: bold), TextRun(text: "\n☐ the remains of the day\n☑ pachinko\n☐ klara and the sun")]),
-            (.japchae, [TextRun(text: "birthday", style: bold), TextRun(text: "\nmum — 14 nov\nbook the korean place")]),
-            (.udon, [TextRun(text: "slow sunday", style: bold), TextRun(text: "\n• laundry\n• call grandma\n• nap")]),
+        let samples: [(Flavor, String)] = [
+            (.prawnMee, "**groceries**\n- [x] prawns\n- [ ] yellow noodles\n- [ ] kangkong\n- [ ] sambal"),
+            (.ramen, "**thursday**\n- standup at 10\n- ==send deck== to mei\n- gym"),
+            (.matchaSoba, "remember to *breathe* 🌿"),
+            (.laksa, "**ideas**\nhot pot night with the team?\n~~too spicy~~ just right"),
+            (.pho, "**reading list**\n- [ ] the remains of the day\n- [x] pachinko\n- [ ] klara and the sun"),
+            (.japchae, "**birthday**\nmum — 14 nov\nbook the korean place"),
+            (.udon, "**slow sunday**\n- laundry\n- call grandma\n- nap"),
         ]
-        for (flavor, content) in samples {
-            model.store.add(Note(number: model.store.nextNumber, flavor: flavor, content: content, isOnScreen: true))
+        for (flavor, markdown) in samples {
+            model.store.add(Note(number: model.store.nextNumber, flavor: flavor, markdown: markdown, isOnScreen: true))
         }
         model.store.add(Note(number: model.store.nextNumber, flavor: .ramen,
-                             content: [TextRun(text: "someday", style: bold), TextRun(text: "\n☐ learn to hand-pull noodles\n☐ visit sapporo")],
-                             isOnScreen: false))
-        model.store.add(Note(number: model.store.nextNumber, flavor: .prawnMee, content: [], isOnScreen: false))
-        model.store.add(Note(number: model.store.nextNumber, flavor: .pho, kind: .markdown, markdown: """
+                             markdown: "**someday**\n- [ ] learn to hand-pull noodles\n- [ ] visit sapporo", isOnScreen: false))
+        model.store.add(Note(number: model.store.nextNumber, flavor: .prawnMee, isOnScreen: false))
+        model.store.add(Note(number: model.store.nextNumber, flavor: .pho, markdown: """
             ## article notes
             **hand-pulled** noodles need ==rested== dough, says [the piece](https://example.com)
             - [x] read part one
@@ -101,7 +96,7 @@ enum Snapshots {
                 - every pull *doubles* the strands
             > the noodle remembers every pull
             """, isOnScreen: true))
-        model.store.add(Note(number: model.store.nextNumber, flavor: .japchae, kind: .markdown, markdown: """
+        model.store.add(Note(number: model.store.nextNumber, flavor: .japchae, markdown: """
             # reading: the art of noodles
             notes from [the article](https://example.com/noodles) — **hand-pulled** vs ==knife-cut==, and why *resting* matters.
 

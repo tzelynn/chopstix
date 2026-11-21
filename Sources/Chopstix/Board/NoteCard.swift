@@ -13,7 +13,6 @@ struct NoteCard: View {
                 Text(String(format: "No. %02d", note.number))
                     .font(Theme.serif(11).italic())
                     .foregroundStyle(Theme.ink.opacity(0.5))
-                if note.kind == .markdown { MarkdownTag() }
                 Spacer()
                 if note.isOnScreen {
                     HStack(spacing: 4) {
@@ -65,12 +64,11 @@ struct NoteCard: View {
             Button(openTitle) { open() }
             NoteMenuItems(note: note, context: .board)
         }
-        .help(note.isOnScreen ? "Click to bring this note forward" : note.kind == .markdown ? "Click to open as a page" : "Click to edit")
+        .help(note.isOnScreen ? "Click to bring this note forward" : "Click to open as a page")
     }
 
     private var openTitle: String {
-        if note.isOnScreen { return "Show on Screen" }
-        return note.kind == .markdown ? "Open as Page" : "Edit"
+        note.isOnScreen ? "Show on Screen" : "Open as Page"
     }
 
     private var actions: some View {
@@ -84,67 +82,5 @@ struct NoteCard: View {
         }
         .padding(2)
         .background(Capsule().fill(note.flavor.paper.opacity(0.9)))
-    }
-}
-
-/// A little menu-style tag (like a dish's "(v)") marking a markdown note.
-struct MarkdownTag: View {
-    var body: some View {
-        Text("md")
-            .font(Theme.rounded(9, .semibold))
-            .foregroundStyle(Theme.ink.opacity(0.5))
-            .padding(.horizontal, 4)
-            .padding(.vertical, 0.5)
-            .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(Theme.ink.opacity(0.3), lineWidth: 0.8))
-            .help("Markdown note")
-    }
-}
-
-/// Edits an in-app note in a sheet over the board.
-struct NoteEditorSheet: View {
-    @Environment(AppModel.self) private var model
-    let noteID: UUID
-    var autofocus = false
-    let dismiss: () -> Void
-
-    var body: some View {
-        VStack(spacing: 14) {
-            if let note = model.store.note(noteID) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(String(format: "No. %02d", note.number))
-                        .font(Theme.serif(13).italic())
-                        .foregroundStyle(Theme.inkSoft)
-                    Text(note.flavor.name)
-                        .font(Theme.serif(17, .semibold))
-                        .foregroundStyle(Theme.ink)
-                    Text(note.flavor.nativeName)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.inkSoft)
-                    Spacer()
-                }
-
-                NoteSurface(note: note, context: .board, autofocus: autofocus)
-                    .id(note.id)
-
-                HStack {
-                    Button {
-                        model.stickOnScreen(note.id)
-                        dismiss()
-                    } label: {
-                        Label("Stick on Screen", systemImage: "macwindow.on.rectangle")
-                    }
-                    Spacer()
-                    Button("Done", action: dismiss)
-                        .keyboardShortcut(.cancelAction) // Esc; Return belongs to the text
-                }
-                .controlSize(.large)
-            }
-        }
-        .padding(22)
-        .frame(width: 440, height: 480)
-        .background(Theme.menuPaper)
-        .onChange(of: model.store.note(noteID) == nil) { _, deleted in
-            if deleted { dismiss() }
-        }
     }
 }

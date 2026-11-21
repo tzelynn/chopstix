@@ -5,8 +5,8 @@ enum MarkdownPlainText {
     /// Only this much of a note is read for its title and preview, so long notes stay cheap.
     static let summaryLimit = 4000
 
-    /// The start of `markdown` with its syntax removed. List items keep the sticky-note markers
-    /// (`• `, `☐ `, `☑ `) so they read the same on the board as sticky notes do.
+    /// The start of `markdown` with its syntax removed. List items become plain
+    /// markers (`• `, `☐ `, `☑ `) so they read naturally on the board.
     static func summary(of markdown: String) -> String {
         var source = markdown as NSString
         if source.length > summaryLimit {
@@ -45,7 +45,7 @@ enum MarkdownPlainText {
     }
 }
 
-/// Turns a sticky note's rich text into markdown.
+/// Turns an old rich-text sticky note into markdown (used when loading notes saved by older versions).
 enum MarkdownConversion {
     static func markdown(from runs: [TextRun]) -> String {
         // Split the runs into lines, keeping each piece's style.

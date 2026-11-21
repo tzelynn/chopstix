@@ -17,13 +17,6 @@ struct BoardView: View {
 
     @Environment(AppModel.self) private var model
     @State private var filter: Filter = .everything
-    @State private var editing: EditTarget?
-
-    struct EditTarget: Identifiable {
-        let id: UUID
-        var autofocus = false
-    }
-
     private var visibleNotes: [Note] {
         model.notes.filter(filter.includes).sorted { $0.number < $1.number }
     }
@@ -39,7 +32,7 @@ struct BoardView: View {
                     .padding(.bottom, 8)
 
                 if visibleNotes.isEmpty {
-                    EmptyMenu(filter: filter) { orderNote(onScreen: false) }
+                    EmptyMenu(filter: filter) { model.newNote(onScreen: false) }
                         .padding(.top, 50)
                 } else {
                     LazyVStack(alignment: .leading, spacing: 34) {
@@ -48,7 +41,7 @@ struct BoardView: View {
                             if !notes.isEmpty {
                                 MenuSection(flavor: flavor, notes: notes, open: open) {
                                     // Keep the new note visible under the current filter.
-                                    orderNote(onScreen: filter == .onScreen, flavor: flavor)
+                                    model.newNote(flavor: flavor, onScreen: filter == .onScreen)
                                 }
                             }
                         }
@@ -65,15 +58,6 @@ struct BoardView: View {
             .frame(maxWidth: .infinity)
         }
         .background(MenuBackground())
-        .sheet(item: $editing) { target in
-            NoteEditorSheet(noteID: target.id, autofocus: target.autofocus) { editing = nil }
-                .environment(model)
-        }
-        .onChange(of: model.requestedBoardEdit, initial: true) { _, id in
-            guard let id else { return }
-            editing = EditTarget(id: id, autofocus: true)
-            model.requestedBoardEdit = nil
-        }
     }
 
     private var controls: some View {
@@ -87,21 +71,15 @@ struct BoardView: View {
             }
             Spacer()
             OrderButton(
-                onNewSticky: { orderNote(onScreen: true) },
-                onNewMarkdown: { model.newMarkdownNote(onScreen: true) },
-                onNewInMenu: { orderNote(onScreen: false) },
-                onFlavor: { flavor in orderNote(onScreen: true, flavor: flavor) }
+                onNew: { model.newNote(onScreen: true) },
+                onNewInMenu: { model.newNote(onScreen: false) },
+                onFlavor: { flavor in model.newNote(flavor: flavor, onScreen: true) }
             )
         }
     }
 
-    private func orderNote(onScreen: Bool, flavor: Flavor? = nil) {
-        let note = model.newNote(flavor: flavor, onScreen: onScreen)
-        if !onScreen { model.editOnBoard(note.id) }
-    }
-
     private func open(_ note: Note) {
-        if !model.revealIfOnScreen(note.id) { editing = EditTarget(id: note.id) }
+        model.reveal(note.id)
     }
 }
 
@@ -188,15 +166,14 @@ struct FilterTab: View {
 
 /// "Order a note" — a stamp-like button, with a flavour menu beside it.
 struct OrderButton: View {
-    let onNewSticky: () -> Void
-    let onNewMarkdown: () -> Void
+    let onNew: () -> Void
     let onNewInMenu: () -> Void
     let onFlavor: (Flavor) -> Void
     @State private var hovering = false
 
     var body: some View {
         HStack(spacing: 0) {
-            Button(action: onNewSticky) {
+            Button(action: onNew) {
                 HStack(spacing: 6) {
                     Image(systemName: "plus")
                         .font(.system(size: 11, weight: .bold))
@@ -209,13 +186,12 @@ struct OrderButton: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("New sticky note (⌘N)")
+            .help("New note (⌘N)")
 
             Rectangle().fill(Theme.menuStamp.opacity(0.35)).frame(width: 1, height: 16)
 
             Menu {
-                Button("New Sticky Note", action: onNewSticky)
-                Button("New Markdown Note", action: onNewMarkdown)
+                Button("New Note", action: onNew)
                 Button("New Note in Menu", action: onNewInMenu)
                 Divider()
                 Section("Choose a flavour") {

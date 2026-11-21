@@ -27,21 +27,10 @@ final class AppModel {
         store.notes.max(by: { $0.createdAt < $1.createdAt })?.flavor.next ?? .ramen
     }
 
+    /// A new note: stuck on the screen, or opened as a page if it lives in the board.
     @discardableResult
-    func newNote(flavor: Flavor? = nil, onScreen: Bool, content: [TextRun] = []) -> Note {
-        let note = Note(number: store.nextNumber, flavor: flavor ?? nextFlavor, content: content, isOnScreen: onScreen)
-        store.add(note)
-        if onScreen {
-            windows.sync()
-            windows.bringToFront(note.id, focus: true)
-        }
-        return note
-    }
-
-    /// A new markdown note: stuck on the screen, or opened as a page if it lives in the board.
-    @discardableResult
-    func newMarkdownNote(flavor: Flavor? = nil, onScreen: Bool, markdown: String = "") -> Note {
-        let note = Note(number: store.nextNumber, flavor: flavor ?? nextFlavor, kind: .markdown, markdown: markdown, isOnScreen: onScreen)
+    func newNote(flavor: Flavor? = nil, onScreen: Bool, markdown: String = "") -> Note {
+        let note = Note(number: store.nextNumber, flavor: flavor ?? nextFlavor, markdown: markdown, isOnScreen: onScreen)
         store.add(note)
         if onScreen {
             windows.sync()
@@ -54,29 +43,8 @@ final class AppModel {
 
     // MARK: Editing
 
-    func setContent(_ id: UUID, _ content: [TextRun]) {
-        store.update(id) { $0.content = content }
-    }
-
     func setMarkdown(_ id: UUID, _ markdown: String) {
         store.update(id) { $0.markdown = markdown }
-    }
-
-    /// Turns a sticky note into a markdown note, after asking — there's no way back.
-    func convertToMarkdown(_ id: UUID) {
-        guard let note = store.note(id), note.kind == .sticky else { return }
-        let alert = NSAlert()
-        alert.messageText = "Turn “\(note.isEmpty ? "this note" : note.title)” into a markdown note?"
-        alert.informativeText = "Bold, italic, strikethrough, bullets and checklists carry over; underlines don’t. Markdown notes can’t be turned back."
-        alert.addButton(withTitle: "Convert")
-        alert.addButton(withTitle: "Cancel")
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        store.update(id) {
-            $0.markdown = MarkdownConversion.markdown(from: $0.content)
-            $0.content = []
-            $0.kind = .markdown
-        }
     }
 
     func setFlavor(_ id: UUID, _ flavor: Flavor) {
@@ -123,33 +91,22 @@ final class AppModel {
         windows.sync()
     }
 
-    /// A note the board should open in its editor sheet (consumed by `BoardView`).
-    var requestedBoardEdit: UUID?
-
-    func editOnBoard(_ id: UUID) {
-        requestedBoardEdit = id
-        showBoard()
-    }
-
-    /// Board click: an open page or on-screen note comes forward, and a markdown note in the
-    /// board opens as a page. Returns false if the note should be edited in the board instead.
-    func revealIfOnScreen(_ id: UUID) -> Bool {
-        guard let note = store.note(id) else { return false }
-        if windows.isPageOpen(id) || note.kind == .markdown && !note.isOnScreen {
-            openPage(id)
-        } else if note.isOnScreen {
+    /// Board click: an on-screen note comes forward; any other note (or one whose page is
+    /// already open) opens as a page.
+    func reveal(_ id: UUID) {
+        guard let note = store.note(id) else { return }
+        if note.isOnScreen && !windows.isPageOpen(id) {
             windows.bringToFront(id, focus: true)
         } else {
-            return false
+            openPage(id)
         }
-        return true
     }
 
     // MARK: Pages
 
-    /// Opens a markdown note as a full page. While it's open its sticky window steps aside.
+    /// Opens a note as a full page. While it's open its sticky window steps aside.
     func openPage(_ id: UUID) {
-        guard store.note(id)?.kind == .markdown else { return }
+        guard store.note(id) != nil else { return }
         windows.openPage(id)
     }
 
@@ -167,10 +124,10 @@ final class AppModel {
 
     // MARK: Saving & exporting
 
-    /// Saves a markdown note as a `.md` file: to the file it was last saved to, unless
+    /// Saves a note as a `.md` file: to the file it was last saved to, unless
     /// `choosingLocation` (Save As) or it hasn't been saved before.
     func saveMarkdown(_ id: UUID, choosingLocation: Bool = false) {
-        guard let note = store.note(id), note.kind == .markdown else { return }
+        guard let note = store.note(id) else { return }
         let window = windows.window(for: id)
         if !choosingLocation, let path = note.exportPath,
            FileManager.default.fileExists(atPath: (path as NSString).deletingLastPathComponent) {
@@ -197,7 +154,7 @@ final class AppModel {
     }
 
     func exportPDF(_ id: UUID) {
-        guard let note = store.note(id), note.kind == .markdown else { return }
+        guard let note = store.note(id) else { return }
         let window = windows.window(for: id)
         MarkdownExporter.chooseLocation(for: note, type: .pdf, window: window) { [weak self] url in
             guard let current = self?.store.note(id) else { return }
@@ -236,31 +193,31 @@ final class AppModel {
     // MARK: First run
 
     private func seedWelcomeNotes() {
-        let b = RunStyle(bold: true)
-        newNote(flavor: .ramen, onScreen: true, content: [
-            TextRun(text: "welcome to chopstix", style: b),
-            TextRun(text: "\nyour notes are served fresh, held up by chopsticks.\n\n• drag the chopsticks to move me\n• drag my sides or bottom corners to resize\n• hover for the toolbar & flavours"),
-        ])
-        newNote(flavor: .prawnMee, onScreen: true, content: [
-            TextRun(text: "today’s order", style: b),
-            TextRun(text: "\n☑ open chopstix\n☐ try "),
-            TextRun(text: "bold", style: b),
-            TextRun(text: ", "),
-            TextRun(text: "italic", style: RunStyle(italic: true)),
-            TextRun(text: " & "),
-            TextRun(text: "underline", style: RunStyle(underline: true)),
-            TextRun(text: "\n☐ tick a box\n☐ find the menu board (⌘0)"),
-        ])
-        store.add(Note(number: store.nextNumber, flavor: .pho, kind: .markdown, markdown: Self.markdownWelcome, isOnScreen: false))
-        newNote(flavor: .matchaSoba, onScreen: false, content: [
-            TextRun(text: "kept in the menu", style: b),
-            TextRun(text: "\nnotes can live only on the board too — use “Stick on Screen” to bring one out."),
-        ])
+        newNote(flavor: .ramen, onScreen: true, markdown: """
+        **welcome to chopstix**
+        your notes are served fresh, held up by chopsticks.
+
+        - drag the chopsticks to move me
+        - drag my sides or bottom corners to resize
+        - hover for the toolbar & flavours
+        """)
+        newNote(flavor: .prawnMee, onScreen: true, markdown: """
+        **today’s order**
+        - [x] open chopstix
+        - [ ] try **bold**, *italic* & ~~strikethrough~~
+        - [ ] tick a box
+        - [ ] find the menu board (⌘0)
+        """)
+        store.add(Note(number: store.nextNumber, flavor: .pho, markdown: Self.markdownWelcome, isOnScreen: false))
+        store.add(Note(number: store.nextNumber, flavor: .matchaSoba, markdown: """
+        **kept in the menu**
+        notes can live only on the board too — use “Stick on Screen” to bring one out.
+        """, isOnScreen: false))
     }
 
     static let markdownWelcome = """
-    # a markdown note
-    for longer notes — it renders as you type, and the **markdown** tucks away off the line you're on.
+    # a longer note
+    notes are markdown — it renders as you type, and the **markdown** tucks away off the line you're on.
 
     - type `/` on an empty line for headings, lists, to-dos & more
     - [ ] tick me

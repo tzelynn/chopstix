@@ -3,7 +3,7 @@ import Observation
 
 /// Owns all notes and persists them, debouncing writes while the user types.
 ///
-/// `notes.json` is a small index (metadata plus sticky-note text). Each markdown note's body is
+/// `notes.json` is a small index of note metadata. Each note's markdown body is
 /// its own `markdown/<id>.md` file, so typing in one only rewrites that file and the index.
 /// Bodies are written before the index and removed after it, so the index never refers to a
 /// body that isn't there; a body the index has lost is adopted back on the next load.
@@ -19,13 +19,13 @@ final class NoteStore {
     @ObservationIgnored let backupURL: URL
     @ObservationIgnored let markdownDirectory: URL
     @ObservationIgnored private var pendingSave: DispatchWorkItem?
-    /// Markdown bodies changed since the last save.
+    /// Bodies changed since the last save.
     @ObservationIgnored private var dirtyBodies: Set<UUID> = []
-    /// Markdown bodies of deleted notes, removed once the index no longer lists them.
+    /// Bodies of deleted notes, removed once the index no longer lists them.
     @ObservationIgnored private var deletedBodies: Set<UUID> = []
 
     private struct Archive: Codable {
-        var version = 2
+        var version = 3
         var notes: [Note]
         /// Custom flavour descriptions, keyed by `Flavor.rawValue`. Absent in older files.
         var blurbs: [String: String]?
@@ -96,14 +96,18 @@ final class NoteStore {
     }
 
     private func loadBodies() {
-        for index in notes.indices where notes[index].kind == .markdown {
+        for index in notes.indices {
             let url = bodyURL(notes[index].id)
             if let text = try? String(contentsOf: url, encoding: .utf8) {
                 notes[index].markdown = text
             } else if FileManager.default.fileExists(atPath: url.path) {
                 NSLog("chopstix: could not read \(url.path)")
+            } else {
+                // No body yet: an old rich-text note converted while decoding. Write it out.
+                dirtyBodies.insert(notes[index].id)
             }
         }
+        if !dirtyBodies.isEmpty { scheduleSave() }
     }
 
     /// Bodies with no note in the index (e.g. the index was lost) come back as notes in the board.
@@ -115,7 +119,7 @@ final class NoteStore {
             guard let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent), !known.contains(id),
                   let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
             let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date()
-            var note = Note(id: id, number: nextNumber, flavor: .udon, kind: .markdown, markdown: text, isOnScreen: false)
+            var note = Note(id: id, number: nextNumber, flavor: .udon, markdown: text, isOnScreen: false)
             note.createdAt = modified
             note.updatedAt = modified
             notes.append(note)
@@ -132,7 +136,7 @@ final class NoteStore {
 
     func add(_ note: Note) {
         notes.append(note)
-        if note.kind == .markdown { dirtyBodies.insert(note.id) }
+        dirtyBodies.insert(note.id)
         scheduleSave()
     }
 
@@ -144,18 +148,16 @@ final class NoteStore {
         change(&note)
         guard note != old else { return }
         if touch { note.updatedAt = Date() }
-        if note.kind == .markdown && (note.markdown != old.markdown || old.kind != .markdown) {
-            dirtyBodies.insert(id)
-        }
+        if note.markdown != old.markdown { dirtyBodies.insert(id) }
         notes[index] = note
         scheduleSave()
     }
 
     func remove(_ id: UUID) {
-        guard let note = note(id) else { return }
+        guard note(id) != nil else { return }
         notes.removeAll { $0.id == id }
         dirtyBodies.remove(id)
-        if note.kind == .markdown { deletedBodies.insert(id) }
+        deletedBodies.insert(id)
         scheduleSave()
     }
 
@@ -206,7 +208,7 @@ final class NoteStore {
                 try fm.createDirectory(at: markdownDirectory, withIntermediateDirectories: true)
             }
             for id in dirtyBodies {
-                guard let note = note(id), note.kind == .markdown else { dirtyBodies.remove(id); continue }
+                guard let note = note(id) else { dirtyBodies.remove(id); continue }
                 do {
                     try Data(note.markdown.utf8).write(to: bodyURL(id), options: .atomic)
                     dirtyBodies.remove(id)

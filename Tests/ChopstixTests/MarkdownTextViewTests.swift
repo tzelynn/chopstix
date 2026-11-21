@@ -84,4 +84,33 @@ import Testing
         #expect(view.string == "# Title")
         #expect(view.selectedRange() == NSRange(location: 2, length: 0))
     }
+
+    /// Every visible glyph in `view` matches its character in the font it's styled with.
+    private func glyphsMatchTheirFonts(in view: MarkdownTextView) -> Bool {
+        let layout = view.markdownLayout!
+        layout.ensureLayout(for: view.textContainer!)
+        let string = view.string as NSString
+        return (0..<string.length).allSatisfy { index in
+            guard let font = view.textStorage?.attribute(.font, at: index, effectiveRange: nil) as? NSFont else { return false }
+            var character = string.character(at: index)
+            var expected: CGGlyph = 0
+            guard CTFontGetGlyphsForCharacters(font as CTFont, &character, &expected, 1) else { return true }
+            let glyph = layout.glyphIndexForCharacter(at: index)
+            // Hidden syntax is laid out as invisible control characters instead.
+            if layout.propertyForGlyph(at: glyph).contains(.controlCharacter) { return true }
+            return layout.cgGlyph(at: glyph) == expected
+        }
+    }
+
+    @Test func restylingRegeneratesEveryGlyph() {
+        // Loaded the way `MarkdownEditor` does, before the view is in a window. The last character
+        // used to keep a glyph from the unstyled font and draw as the wrong letter ("nap" → "naẺ").
+        let fresh = MarkdownTextView.make(theme: .sticky(.udon))
+        fresh.frame = NSRect(x: 0, y: 0, width: 300, height: 400)
+        fresh.markdown = "**slow sunday**\n- laundry\n- nap"
+        #expect(glyphsMatchTheirFonts(in: fresh))
+
+        type("**slow sunday**\n- nap\n# heading")
+        #expect(glyphsMatchTheirFonts(in: view))
+    }
 }

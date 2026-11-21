@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A window showing one note. Answers the File menu's save and export commands for markdown notes.
+/// A window showing one note. Answers the File menu's save and export commands.
 class NoteHostWindow: NSWindow {
     let noteID: UUID
     weak var model: AppModel?
@@ -22,7 +22,7 @@ class NoteHostWindow: NSWindow {
     override func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(saveDocument(_:)), #selector(saveDocumentAs(_:)), #selector(cxExportPDF(_:)), #selector(cxOpenAsPage(_:)):
-            return model?.store.note(noteID)?.kind == .markdown
+            return model?.store.note(noteID) != nil
         default:
             return super.validateMenuItem(menuItem)
         }
@@ -54,7 +54,7 @@ final class NoteWindow: NoteHostWindow {
     }
 }
 
-/// A markdown note opened as a full page: an ordinary window that can go full screen.
+/// A note opened as a full page: an ordinary window that can go full screen.
 final class PageWindow: NoteHostWindow {
     static let minSize = NSSize(width: 640, height: 420)
 
@@ -91,7 +91,7 @@ final class NoteWindowManager: NSObject, NSWindowDelegate {
 
     /// Opens, closes and re-levels windows to match the store.
     func sync() {
-        for (id, page) in pages where model.store.note(id)?.kind != .markdown {
+        for (id, page) in pages where model.store.note(id) == nil {
             close(page)
             pages[id] = nil
         }

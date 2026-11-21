@@ -10,7 +10,11 @@ portable `.md` underneath. It lives everywhere a sticky note does (on the screen
 chopsticks, or only in the board) and can also be opened as a full **page** for focused
 writing, then saved as `.md` or exported as PDF.
 
-The existing rich-text notes are untouched; they are now "sticky notes" in the UI.
+**Update:** markdown notes are now the only kind of note. The original rich-text notes were
+removed; any saved by older versions are converted to markdown when they load (bold, italic,
+strikethrough, bullets and checklists carry over; underlines don't), and their bodies are
+written out to `markdown/<id>.md`. The board's editor sheet went with them — a note in the
+board opens as a page.
 
 ## Live rendering ("render on the fly")
 
@@ -55,8 +59,6 @@ Pieces:
   ⌥⌘1–3 headings, ⌥⌘0 body text, ⇧⌘7 bullets, ⇧⌘9 numbers, ⇧⌘L to-dos.
 * **Paste a URL over selected text** → it becomes a link. Pasted text is always plain.
 * Word count & reading time on the page.
-* **Convert a sticky note to markdown** (⋯ menu) — bold/italic/strike, bullets and
-  checklists carry over.
 
 ## Sticky ↔ page
 
@@ -93,7 +95,8 @@ Pieces:
   `notes.json` can't be read it is set aside (as before) and the backup is loaded; any `.md`
   body not referenced by the index is adopted back into the board instead of being lost.
   Bodies are plain markdown, readable by any editor even without chopstix.
-* Format version bumps to 2; version-1 files load unchanged (no `kind` → sticky note).
+* Format version 3 drops `kind`. Older files still load: a note with rich-text `content` in
+  the index is converted to markdown and its body written out on the next save.
 
 ## Out of scope
 

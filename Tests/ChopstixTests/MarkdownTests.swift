@@ -215,10 +215,10 @@ private func sel(_ location: Int, _ length: Int = 0) -> NSRange { NSRange(locati
     }
 
     @Test func markdownNoteTitleAndPreview() {
-        let note = Note(number: 1, flavor: .pho, kind: .markdown, markdown: "\n## Reading notes\n- [ ] chapter 1\n\n> quote", isOnScreen: false)
+        let note = Note(number: 1, flavor: .pho, markdown: "\n## Reading notes\n- [ ] chapter 1\n\n> quote", isOnScreen: false)
         #expect(note.title == "Reading notes")
         #expect(note.preview == "☐ chapter 1\nquote")
-        #expect(Note(number: 1, flavor: .pho, kind: .markdown, markdown: "#\n- [ ] ", isOnScreen: false).isEmpty)
+        #expect(Note(number: 1, flavor: .pho, markdown: "#\n- [ ] ", isOnScreen: false).isEmpty)
     }
 
     @Test func wordCount() {
@@ -257,26 +257,24 @@ private func sel(_ location: Int, _ length: Int = 0) -> NSRange { NSRange(locati
     @Test func bodiesLiveInTheirOwnFiles() throws {
         let dir = tempDir()
         let store = NoteStore(directory: dir)
-        let note = Note(number: 1, flavor: .ramen, kind: .markdown, markdown: "# hi\nthere", isOnScreen: true)
+        let note = Note(number: 1, flavor: .ramen, markdown: "# hi\nthere", isOnScreen: true)
         store.add(note)
         store.saveNow()
 
         let index = try String(contentsOf: dir.appendingPathComponent("notes.json"), encoding: .utf8)
         #expect(!index.contains("there"))
-        #expect(index.contains("\"kind\" : \"markdown\""))
         #expect(try String(contentsOf: store.bodyURL(note.id), encoding: .utf8) == "# hi\nthere")
 
         let reloaded = NoteStore(directory: dir)
         reloaded.load()
         #expect(reloaded.note(note.id)?.markdown == "# hi\nthere")
-        #expect(reloaded.note(note.id)?.kind == .markdown)
     }
 
     @Test func onlyChangedBodiesAreRewritten() throws {
         let dir = tempDir()
         let store = NoteStore(directory: dir)
-        let a = Note(number: 1, flavor: .ramen, kind: .markdown, markdown: "a", isOnScreen: false)
-        let b = Note(number: 2, flavor: .ramen, kind: .markdown, markdown: "b", isOnScreen: false)
+        let a = Note(number: 1, flavor: .ramen, markdown: "a", isOnScreen: false)
+        let b = Note(number: 2, flavor: .ramen, markdown: "b", isOnScreen: false)
         store.add(a)
         store.add(b)
         store.saveNow()
@@ -293,7 +291,7 @@ private func sel(_ location: Int, _ length: Int = 0) -> NSRange { NSRange(locati
     @Test func deletingRemovesTheBody() {
         let dir = tempDir()
         let store = NoteStore(directory: dir)
-        let note = Note(number: 1, flavor: .ramen, kind: .markdown, markdown: "x", isOnScreen: false)
+        let note = Note(number: 1, flavor: .ramen, markdown: "x", isOnScreen: false)
         store.add(note)
         store.saveNow()
         store.remove(note.id)
@@ -304,9 +302,7 @@ private func sel(_ location: Int, _ length: Int = 0) -> NSRange { NSRange(locati
     @Test func lostIndexRecoversBodiesAndBackup() throws {
         let dir = tempDir()
         let store = NoteStore(directory: dir)
-        let sticky = Note(number: 1, flavor: .laksa, content: [TextRun(text: "sticky")], isOnScreen: false)
-        let page = Note(number: 2, flavor: .ramen, kind: .markdown, markdown: "# kept", isOnScreen: false)
-        store.add(sticky)
+        let page = Note(number: 1, flavor: .ramen, markdown: "# kept", isOnScreen: false)
         store.add(page)
         store.saveNow()
         NoteStore(directory: dir).load() // a clean launch takes the backup
@@ -314,7 +310,6 @@ private func sel(_ location: Int, _ length: Int = 0) -> NSRange { NSRange(locati
         try Data("garbage".utf8).write(to: dir.appendingPathComponent("notes.json"))
         let recovered = NoteStore(directory: dir)
         #expect(recovered.load())
-        #expect(recovered.note(sticky.id)?.plainText == "sticky")
         #expect(recovered.note(page.id)?.markdown == "# kept")
     }
 
@@ -331,18 +326,27 @@ private func sel(_ location: Int, _ length: Int = 0) -> NSRange { NSRange(locati
         #expect(store.note(id)?.isOnScreen == false)
     }
 
-    @Test func versionOneFilesStillLoad() throws {
+    @Test func oldStickyNotesBecomeMarkdown() throws {
         let dir = tempDir()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let v1 = """
         {"version":1,"notes":[{"id":"6F1C5B8E-1C2D-4C47-9E33-9B0F7A8E2C11","number":3,"flavor":"pho",
-        "content":[{"text":"old"}],"isOnScreen":false,"alwaysOnTop":false,
+        "content":[{"text":"old","bold":true},{"text":"\\n☐ todo"}],"isOnScreen":false,"alwaysOnTop":false,
         "createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}]}
         """
         try Data(v1.utf8).write(to: dir.appendingPathComponent("notes.json"))
         let store = NoteStore(directory: dir)
         store.load()
-        #expect(store.notes.first?.kind == .sticky)
-        #expect(store.notes.first?.plainText == "old")
+        let note = try #require(store.notes.first)
+        #expect(note.markdown == "**old**\n- [ ] todo")
+        store.saveNow()
+
+        // The converted body is written out and the index no longer carries the old text.
+        #expect(try String(contentsOf: store.bodyURL(note.id), encoding: .utf8) == "**old**\n- [ ] todo")
+        let index = try String(contentsOf: dir.appendingPathComponent("notes.json"), encoding: .utf8)
+        #expect(!index.contains("content"))
+        let reloaded = NoteStore(directory: dir)
+        reloaded.load()
+        #expect(reloaded.note(note.id)?.markdown == "**old**\n- [ ] todo")
     }
 }
