@@ -403,17 +403,19 @@ struct SectionDescription: View {
                 }
             } else {
                 // The whole free stretch of the line is the target, outlined on hover so it reads as a field.
+                // Only the hint's ink fades out: the field itself stays hit-testable (a view at zero opacity
+                // isn't), so clicking the line works even when the section's hover state is stale after a scroll.
                 Button(action: beginEditing) {
                     HStack(spacing: 5) {
                         Image(systemName: "plus").font(.system(size: 9, weight: .semibold))
                         Text("add a description")
                     }
                     .foregroundStyle(hovering ? Theme.inkSoft : Theme.inkFaint)
+                    .opacity(sectionHovered || hovering ? 1 : 0)
                     .modifier(DescriptionField(highlighted: hovering, dashed: true))
                 }
                 .buttonStyle(.plain)
                 .onHover { hovering = $0 }
-                .opacity(sectionHovered || hovering ? 1 : 0)
                 .help("Describe what this section is for")
             }
         }
