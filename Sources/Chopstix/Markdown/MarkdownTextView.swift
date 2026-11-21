@@ -115,6 +115,8 @@ final class MarkdownTextView: NSTextView {
         view.isAutomaticDashSubstitutionEnabled = false // `---` must stay a rule
         view.isAutomaticQuoteSubstitutionEnabled = false
         view.isAutomaticTextReplacementEnabled = false
+        view.usesFindBar = true // Edit ▸ Find (⌘F, ⌘G, ⇧⌘G, ⌥⌘F)
+        view.isIncrementalSearchingEnabled = true
         view.insertionPointColor = theme.ink
         view.typingAttributes = theme.bodyAttributes
         NotificationCenter.default.addObserver(view, selector: #selector(selectionDidChange(_:)),
@@ -241,6 +243,83 @@ final class MarkdownTextView: NSTextView {
     }
 
     // MARK: Keys
+
+    /// Keys that differ from AppKit's defaults: Home/End move within the line rather than
+    /// scrolling the document, ⌘←/⌘→ move by word (⌥←/⌥→ still do too), and ⌘⌫ deletes the
+    /// word before the caret instead of the whole line. Shift extends the selection.
+    static func keyCommand(for key: NSEvent.SpecialKey, modifiers: NSEvent.ModifierFlags) -> Selector? {
+        let mods = modifiers.intersection([.command, .option, .control, .shift])
+        let extend = mods.contains(.shift)
+        switch (key, mods.subtracting(.shift)) {
+        case (.home, []):
+            return extend ? #selector(moveToBeginningOfLineAndModifySelection(_:)) : #selector(moveToBeginningOfLine(_:))
+        case (.end, []):
+            return extend ? #selector(moveToEndOfLineAndModifySelection(_:)) : #selector(moveToEndOfLine(_:))
+        case (.leftArrow, .command):
+            return extend ? #selector(moveWordLeftAndModifySelection(_:)) : #selector(moveWordLeft(_:))
+        case (.rightArrow, .command):
+            return extend ? #selector(moveWordRightAndModifySelection(_:)) : #selector(moveWordRight(_:))
+        case (.delete, .command) where !extend:
+            return #selector(deleteWordBackward(_:))
+        default:
+            return nil
+        }
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if !hasMarkedText(), let key = event.specialKey,
+           let command = Self.keyCommand(for: key, modifiers: event.modifierFlags) {
+            doCommand(by: command)
+            return
+        }
+        super.keyDown(with: event)
+    }
+
+    /// Esc hides the find bar if it's showing, else closes a page. Anywhere else it does
+    /// nothing, rather than AppKit's word completion.
+    override func cancelOperation(_ sender: Any?) {
+        if let scrollView = enclosingScrollView, scrollView.isFindBarVisible {
+            let hide = NSMenuItem()
+            hide.tag = NSTextFinder.Action.hideFindInterface.rawValue
+            performTextFinderAction(hide)
+            window?.makeFirstResponder(self)
+        } else if let page = window as? PageWindow {
+            page.performClose(sender)
+        }
+    }
+
+    // MARK: Cut
+
+    /// Where a line cut goes and is pasted back from; tests swap in a private pasteboard.
+    var linePasteboard = NSPasteboard.general
+
+    /// Marks a clipboard holding a line cut with nothing selected, so pasting it inserts a line.
+    static let wholeLineType = NSPasteboard.PasteboardType("com.chopstix.whole-line")
+
+    /// With nothing selected, ⌘X cuts the whole line, as in VS Code.
+    override func cut(_ sender: Any?) {
+        let selection = selectedRange()
+        guard selection.length == 0, nsString.length > 0 else { return super.cut(sender) }
+        var range = nsString.lineRange(for: selection)
+        var text = nsString.substring(with: range)
+        if !text.hasSuffix("\n") {
+            text += "\n"
+            // The last line has no newline of its own, so take the one before it.
+            if range.location > 0 { range = NSRange(location: range.location - 1, length: range.length + 1) }
+        }
+        linePasteboard.clearContents()
+        linePasteboard.setString(text, forType: .string)
+        linePasteboard.setData(Data(), forType: Self.wholeLineType)
+        guard shouldChangeText(in: range, replacementString: "") else { return }
+        textStorage?.replaceCharacters(in: range, with: "")
+        didChangeText()
+        setSelectedRange(NSRange(location: min(range.location, nsString.length), length: 0))
+    }
+
+    override func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        if item.action == #selector(cut(_:)) { return isEditable && nsString.length > 0 }
+        return super.validateUserInterfaceItem(item)
+    }
 
     override func insertNewline(_ sender: Any?) {
         let selection = selectedRange()
@@ -405,7 +484,21 @@ final class MarkdownTextView: NSTextView {
             apply(MarkdownEditing.link(in: nsString, selection: selection, url: url))
             return
         }
+        if selection.length == 0, pasteLineAbove(selection.location) { return }
         pasteAsPlainText(sender)
+    }
+
+    /// A line cut with ⌘X (nothing selected) pastes as its own line above the caret's, as in
+    /// VS Code, so ⌘X then ⌘V moves a line. The caret stays where it was in its line.
+    private func pasteLineAbove(_ caret: Int) -> Bool {
+        guard linePasteboard.types?.contains(Self.wholeLineType) == true,
+              let text = linePasteboard.string(forType: .string) else { return false }
+        let start = nsString.lineRange(for: NSRange(location: caret, length: 0)).location
+        guard shouldChangeText(in: NSRange(location: start, length: 0), replacementString: text) else { return true }
+        textStorage?.replaceCharacters(in: NSRange(location: start, length: 0), with: text)
+        didChangeText()
+        setSelectedRange(NSRange(location: caret + (text as NSString).length, length: 0))
+        return true
     }
 
     private static func clipboardURL() -> String? {

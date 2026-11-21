@@ -71,6 +71,10 @@ Rich-text notes from older versions are converted to markdown the first time the
 | Nest a list item | Tab / ⇧Tab; Return on an empty item un-nests it, then ends the list |
 | Open a link | ⌘-click it (paste a URL over selected text to link it) |
 | Open as a page | ⌥⌘↩ or ⤢ on the note; clicking a note in the board |
+| Close a page | Esc, or ⌘W |
+| Move the caret | Home / End to the start / end of the line · ⌘← / ⌘→ by word (⇧ to select) |
+| Delete a word / cut a line | ⌘⌫ deletes the word before the caret · ⌘X with nothing selected cuts the line, and ⌘V pastes it back as a line above the caret |
+| Find in a note | ⌘F (⌥⌘F to replace), ⌘G / ⇧⌘G for next / previous, Esc to hide |
 | Save as `.md` / export PDF | ⌘S (saves again to the same file) · ⇧⌘S · ⇧⌘E |
 
 Flavours: Prawn Mee, Ramen, Matcha Soba, Laksa, Pho, Japchae, Udon.

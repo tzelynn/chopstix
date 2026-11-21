@@ -113,4 +113,79 @@ import Testing
         type("**slow sunday**\n- nap\n# heading")
         #expect(glyphsMatchTheirFonts(in: view))
     }
+
+    // MARK: Navigation keys
+
+    private func press(_ key: NSEvent.SpecialKey, _ modifiers: NSEvent.ModifierFlags = []) {
+        let command = MarkdownTextView.keyCommand(for: key, modifiers: modifiers)
+        #expect(command != nil)
+        if let command { view.doCommand(by: command) }
+    }
+
+    @Test func endAndHomeMoveWithinTheLine() {
+        type("first line\nsecond line")
+        view.setSelectedRange(NSRange(location: 3, length: 0))
+        press(.end)
+        #expect(view.selectedRange() == NSRange(location: 10, length: 0))
+        press(.home, .shift)
+        #expect(view.selectedRange() == NSRange(location: 0, length: 10))
+    }
+
+    @Test func commandArrowsMoveByWord() {
+        type("one two three")
+        view.setSelectedRange(NSRange(location: 5, length: 0))
+        press(.rightArrow, .command)
+        #expect(view.selectedRange() == NSRange(location: 7, length: 0))
+        press(.leftArrow, .command)
+        #expect(view.selectedRange() == NSRange(location: 4, length: 0))
+        press(.rightArrow, [.command, .shift])
+        #expect(view.selectedRange() == NSRange(location: 4, length: 3))
+    }
+
+    @Test func otherKeysKeepTheirDefaults() {
+        #expect(MarkdownTextView.keyCommand(for: .leftArrow, modifiers: .option) == nil)
+        #expect(MarkdownTextView.keyCommand(for: .upArrow, modifiers: .command) == nil)
+        #expect(MarkdownTextView.keyCommand(for: .end, modifiers: .command) == nil)
+    }
+
+    @Test func commandDeleteRemovesTheWordBefore() {
+        type("one two three")
+        press(.delete, .command)
+        #expect(view.string == "one two ")
+    }
+
+    // MARK: Cutting lines
+
+    private let pasteboard = NSPasteboard(name: .init("chopstix-tests-\(UUID())"))
+
+    private func cutLine(at caret: Int) -> String? {
+        view.linePasteboard = pasteboard
+        view.setSelectedRange(NSRange(location: caret, length: 0))
+        view.cut(nil)
+        return pasteboard.string(forType: .string)
+    }
+
+    @Test func cutWithNoSelectionTakesTheLine() {
+        type("one\ntwo\nthree")
+        #expect(cutLine(at: 5) == "two\n")
+        #expect(view.string == "one\nthree")
+        #expect(view.selectedRange() == NSRange(location: 4, length: 0))
+    }
+
+    @Test func cuttingTheLastLineTakesTheNewlineBefore() {
+        view.markdown = "one\ntwo" // not typed, so undo only reverts the cut
+        #expect(cutLine(at: 6) == "two\n")
+        #expect(view.string == "one")
+        view.undoManager?.undo()
+        #expect(view.string == "one\ntwo")
+    }
+
+    @Test func pastingACutLineInsertsItAbove() {
+        type("one\ntwo\nthree")
+        _ = cutLine(at: 1)              // "two\nthree", caret at the start of "two"
+        view.setSelectedRange(NSRange(location: 6, length: 0)) // "th|ree"
+        view.paste(nil)
+        #expect(view.string == "two\none\nthree")
+        #expect(view.selectedRange() == NSRange(location: 10, length: 0)) // still "th|ree"
+    }
 }

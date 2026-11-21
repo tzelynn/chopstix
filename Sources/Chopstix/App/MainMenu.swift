@@ -43,6 +43,17 @@ enum MainMenu {
         edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        edit.addItem(.separator())
+        // Handled by the focused editor's find bar.
+        func find(_ title: String, _ action: NSTextFinder.Action, _ key: String, _ modifiers: NSEvent.ModifierFlags = .command) {
+            let item = edit.addItem(withTitle: title, action: #selector(NSResponder.performTextFinderAction(_:)), keyEquivalent: key)
+            item.keyEquivalentModifierMask = modifiers
+            item.tag = action.rawValue
+        }
+        find("Find…", .showFindInterface, "f")
+        find("Find and Replace…", .showReplaceInterface, "f", [.command, .option])
+        find("Find Next", .nextMatch, "g")
+        find("Find Previous", .previousMatch, "g", [.command, .shift])
 
         // Items go down the responder chain, so they're disabled unless a note editor has focus.
         let format = submenu(in: main, title: "Format")

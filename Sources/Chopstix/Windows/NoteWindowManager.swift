@@ -70,6 +70,13 @@ final class PageWindow: NoteHostWindow {
         tabbingMode = .disallowed
     }
 
+    /// Esc closes the page (the editor forwards it here too), returning the note to where it lived.
+    override func cancelOperation(_ sender: Any?) { performClose(sender) }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 { cancelOperation(nil) } else { super.keyDown(with: event) } // Esc
+    }
+
     /// Already a page, so there's nothing to open.
     override func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.action == #selector(cxOpenAsPage(_:)) { return false }
